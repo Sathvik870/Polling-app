@@ -1,14 +1,16 @@
 // frontend/src/pages/PollVotingPage.jsx
 import React, { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import apiClient, { getPollById, castVote } from '../services/api';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'; // Added useLocation
+import apiClient, { getPollById, castVote, checkUserVoteStatus } from '../services/api'; // Added checkUserVoteStatus
 import { AuthContext } from '../App';
 
 // CORRECTED QR Code Import: Use namespace and select the specific component
 import * as QRCodeNamespace from 'qrcode.react';
-const QRCodeComponent = QRCodeNamespace.QRCodeSVG; 
-import { Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+const QRCodeComponent = QRCodeNamespace.QRCodeSVG;
+// Bar chart import is not used in the final version based on your provided snippet,
+// but if it was for simple results, it would be here.
+// import { Bar } from 'react-chartjs-2';
+// import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
 import io from 'socket.io-client';
 import styles from './PollVotingPage.module.css';
@@ -21,70 +23,136 @@ const ShareSvg = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewB
 const ExternalLinkSvg = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={styles.linkIcon}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>;
 const StopSvg = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={styles.actionButtonIcon}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 9.563C9 9.252 9.252 9 9.563 9h4.874c.311 0 .563.252.563.563v4.874c0 .311-.252.563-.563.563H9.564A.562.562 0 019 14.437V9.564z" /></svg>;
 
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
+// ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement); // Only if using Bar chart here
 const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5001');
 
 function PollVotingPage() {
     const { pollId } = useParams();
+    const navigate = useNavigate();
+    const location = useLocation(); // For redirecting back after login
+    const { currentUser } = useContext(AuthContext);
+
     const [poll, setPoll] = useState(null);
     const [selectedOptionId, setSelectedOptionId] = useState(null);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [hasVotedThisSession, setHasVotedThisSession] = useState(false);
-    const [showSimpleResultsOnPage, setShowSimpleResultsOnPage] = useState(false);
-    const { currentUser } = useContext(AuthContext);
-    const navigate = useNavigate();
+    const [isProcessingVote, setIsProcessingVote] = useState(false);
+    
+    // Server-verified vote status for the current user (if poll is authenticated)
+    const [hasUserVotedServer, setHasUserVotedServer] = useState(null); // null: unknown, true: voted, false: not voted
+    const [isLoadingVoteStatus, setIsLoadingVoteStatus] = useState(false);
 
+    // Session-based "voted" status, primarily for anonymous polls or quick UI feedback
+    const [hasVotedThisSession, setHasVotedThisSession] = useState(false);
+    
+    const [showSimpleResultsOnPage, setShowSimpleResultsOnPage] = useState(false);
+    
     const idToUse = poll?.shortId || poll?._id || pollId;
 
-    const determineSimpleResultsVisibility = (currentPoll, userVotedStatus) => {
+    const determineSimpleResultsVisibility = (currentPoll, userVotedSession, userVotedServerStatus) => {
         if (!currentPoll) return false;
-        if (!currentPoll.isPublic) return false;
+        // If poll is private, simple results on this page are usually not shown unless creator is viewing or poll is closed.
+        // For public polls:
+        if (!currentPoll.isPublic) return false; // Simplified: only show for public polls on this page
 
         const isPollExpired = currentPoll.expiresAt && new Date(parseISO(currentPoll.expiresAt)) < new Date();
         const isPollClosed = currentPoll.status === 'closed';
+        
+        let effectiveVotedStatus = userVotedSession;
+        if (currentPoll.votingType === 'authenticated' && userVotedServerStatus !== null) {
+            effectiveVotedStatus = userVotedServerStatus;
+        }
 
         if (currentPoll.resultsVisibility === 'always_simple' || isPollExpired || isPollClosed) {
             return true;
         }
-        if (currentPoll.resultsVisibility === 'after_vote_simple' && userVotedStatus) {
+        if (currentPoll.resultsVisibility === 'after_vote_simple' && effectiveVotedStatus) {
             return true;
         }
         return false;
     };
 
     useEffect(() => {
-        const fetchPollData = async () => {
-            setIsLoading(true); setError('');
+        const fetchPollAndUserVoteStatus = async () => {
+            setIsLoading(true);
+            setIsLoadingVoteStatus(true);
+            setError('');
+            setPoll(null);
+            setHasUserVotedServer(null);
+
             try {
-                const response = await getPollById(pollId);
-                const fetchedPoll = response.data;
+                const pollResponse = await getPollById(pollId);
+                const fetchedPoll = pollResponse.data;
+                
+                if (!fetchedPoll) {
+                    setError('Poll not found.');
+                    setIsLoading(false);
+                    setIsLoadingVoteStatus(false);
+                    return;
+                }
                 setPoll(fetchedPoll);
 
                 const storageId = fetchedPoll.shortId || fetchedPoll._id;
-                const userVoted = !!localStorage.getItem(`voted_${storageId}`);
-                setHasVotedThisSession(userVoted);
-                setShowSimpleResultsOnPage(determineSimpleResultsVisibility(fetchedPoll, userVoted));
+                const localSessionVote = !!localStorage.getItem(`voted_${storageId}`);
+                setHasVotedThisSession(localSessionVote);
+
+                if (fetchedPoll.votingType === 'authenticated') {
+                    if (currentUser) {
+                        try {
+                            const voteStatusResponse = await checkUserVoteStatus(storageId);
+                            setHasUserVotedServer(voteStatusResponse.data.hasVoted);
+                            if (voteStatusResponse.data.hasVoted) {
+                                localStorage.setItem(`voted_${storageId}`, 'true');
+                                setHasVotedThisSession(true);
+                            }
+                        } catch (statusErr) {
+                            console.error("Error checking user vote status:", statusErr.response?.data?.message || statusErr.message);
+                            // Default to false or handle error appropriately, e.g., show a specific error message.
+                            // For now, allow voting attempt if status check fails to prevent user blockage on transient errors.
+                            setHasUserVotedServer(false); 
+                            setError("Could not verify your previous voting status. Please try voting if you haven't.");
+                        }
+                    } else {
+                        // Poll requires auth, but user is not logged in.
+                        navigate('/login', { state: { from: location }, replace: true });
+                        setIsLoading(false); 
+                        setIsLoadingVoteStatus(false);
+                        return; 
+                    }
+                } else {
+                    // For non-authenticated polls, server vote status check for current user is not applicable.
+                    setHasUserVotedServer(false); // Or null
+                }
+                
+                // Pass the most up-to-date hasUserVotedServer status
+                setShowSimpleResultsOnPage(determineSimpleResultsVisibility(fetchedPoll, localSessionVote, hasUserVotedServer));
 
             } catch (err) {
                 setError(err.response?.data?.message || 'Poll not found or error loading poll.');
                 setPoll(null);
             } finally {
                 setIsLoading(false);
+                setIsLoadingVoteStatus(false);
             }
         };
-        if (pollId) fetchPollData(); else { setIsLoading(false); setError("No poll ID specified.");}
+
+        if (pollId) {
+            fetchPollAndUserVoteStatus();
+        } else {
+            setIsLoading(false);
+            setIsLoadingVoteStatus(false);
+            setError("No poll ID specified.");
+        }
 
         socket.emit('join_poll_room', pollId);
         
         const handleVoteUpdate = (updatedPollData) => {
-            if ((updatedPollData._id === poll?._id) || (updatedPollData.shortId === poll?.shortId)) {
+             if ((updatedPollData._id === poll?._id) || (updatedPollData.shortId === poll?.shortId)) {
                 setPoll(prevPoll => {
+                    if (!prevPoll) return null;
                     const newPollState = { ...prevPoll, ...updatedPollData, options: updatedPollData.options };
-                    const userVoted = !!localStorage.getItem(`voted_${newPollState.shortId || newPollState._id}`);
-                    setShowSimpleResultsOnPage(determineSimpleResultsVisibility(newPollState, userVoted || hasVotedThisSession));
+                    const userVotedSess = !!localStorage.getItem(`voted_${newPollState.shortId || newPollState._id}`);
+                    setShowSimpleResultsOnPage(determineSimpleResultsVisibility(newPollState, userVotedSess, hasUserVotedServer));
                     return newPollState;
                 });
             }
@@ -93,9 +161,10 @@ function PollVotingPage() {
         const handlePollClosed = (closedPollData) => {
             if ((closedPollData._id === poll?._id) || (closedPollData.shortId === poll?.shortId)) {
                 setPoll(prevPoll => {
+                    if (!prevPoll) return null;
                     const newPollState = {...prevPoll, status: 'closed', expiresAt: closedPollData.expiresAt};
-                    const userVoted = !!localStorage.getItem(`voted_${newPollState.shortId || newPollState._id}`);
-                    setShowSimpleResultsOnPage(determineSimpleResultsVisibility(newPollState, userVoted || hasVotedThisSession));
+                    const userVotedSess = !!localStorage.getItem(`voted_${newPollState.shortId || newPollState._id}`);
+                    setShowSimpleResultsOnPage(determineSimpleResultsVisibility(newPollState, userVotedSess, hasUserVotedServer));
                     return newPollState;
                 });
             }
@@ -108,73 +177,97 @@ function PollVotingPage() {
             socket.off('vote_update', handleVoteUpdate);
             socket.off('poll_closed', handlePollClosed);
         };
-    }, [pollId, hasVotedThisSession]); // Re-added hasVotedThisSession here if needed for re-evaluation
+    }, [pollId, currentUser, navigate, location]);
+
 
     const handleVote = async () => {
-        // ... (same as previous correct version)
         if (!selectedOptionId || !poll) return;
+
         if (poll.votingType === 'authenticated' && !currentUser) {
             setError('Login required to vote.');
-            navigate('/login', { state: { from: `/poll/${pollId}` } });
+            navigate('/login', { state: { from: location }, replace: true });
             return;
         }
-        setError(''); setIsProcessing(true);
+
+        setError(''); setIsProcessingVote(true);
         try {
             const optionIndex = poll.options.findIndex(opt => opt._id === selectedOptionId);
-            if (optionIndex === -1) { setError('Invalid option selected.'); setIsProcessing(false); return; }
+            if (optionIndex === -1) { setError('Invalid option selected.'); setIsProcessingVote(false); return; }
             
-            const response = await castVote(idToUse, { optionIndex });
-            setHasVotedThisSession(true);
+            await castVote(idToUse, { optionIndex }); // response from castVote is the updated poll
+            
+            setHasVotedThisSession(true); 
             localStorage.setItem(`voted_${idToUse}`, 'true');
+            if (poll.votingType === 'authenticated') {
+                setHasUserVotedServer(true);
+            }
+            // Let socket 'vote_update' handle poll state update for vote counts
             
         } catch (err) {
-            setError(err.response?.data?.message || 'Vote casting failed. You might have already voted or the poll is restricted.');
+            const errorMessage = err.response?.data?.message || 'Vote casting failed. You might have already voted or the poll is restricted.';
+            setError(errorMessage);
+            if (errorMessage?.toLowerCase().includes('already voted')) {
+                setHasVotedThisSession(true);
+                localStorage.setItem(`voted_${idToUse}`, 'true');
+                if (poll.votingType === 'authenticated') {
+                    setHasUserVotedServer(true);
+                }
+            }
         } finally {
-            setIsProcessing(false);
+            setIsProcessingVote(false);
         }
     };
 
     const handleStopPoll = async () => {
-        // ... (same as previous correct version)
-        if (!poll || !currentUser || poll.creator._id !== currentUser._id) {
+        if (!poll || !currentUser || !poll.creator || poll.creator._id !== currentUser._id) {
             setError("You are not authorized to stop this poll."); return;
         }
         if (!window.confirm("Stop this poll? Voters will then be able to see detailed results.")) return;
 
-        setError(''); setIsProcessing(true);
+        setError(''); setIsProcessingVote(true); // Use isProcessingVote to disable button
         try {
             await apiClient.post(`/api/polls/${idToUse}/stop`);
+            // Poll state will be updated via socket 'poll_closed' event
         } catch (err) {
             setError(err.response?.data?.message || "Failed to stop poll.");
         } finally {
-            setIsProcessing(false);
+            setIsProcessingVote(false);
         }
     };
 
-    if (isLoading && !poll) return <div className={styles.loadingText}>Loading poll...</div>;
-    if (error && !poll) return <div className={`${styles.loadingText} ${styles.statusError}`}>{error}</div>;
-    if (!poll) return <div className={styles.loadingText}>Poll information is unavailable.</div>;
+    // --- Loading and Error States ---
+    if (isLoading) return <div className={styles.loadingText}>Loading poll...</div>;
+    
+    if (!poll) return (
+        <div className={`${styles.loadingText} ${styles.statusError}`}>
+            {error || "Poll information is unavailable."}
+            <Link to="/" className={styles.backButtonLink}>Go Home</Link>
+        </div>
+    );
 
+    // This state will be true if poll is authenticated, user is logged in, but we are still fetching their vote status
+    if (poll.votingType === 'authenticated' && currentUser && isLoadingVoteStatus) {
+        return <div className={styles.loadingText}>Checking your voting status...</div>;
+    }
+
+    // --- Determine if user can vote ---
     const isCreator = currentUser && poll.creator && currentUser._id === poll.creator._id;
     const isPollExpired = poll.expiresAt && new Date(parseISO(poll.expiresAt)) < new Date();
     const isPollClosed = poll.status === 'closed';
-    const isPollScheduled = poll.status === 'scheduled' && !poll.expiresAt && !poll.isPublic;
+    const isPollScheduled = poll.status === 'scheduled' && !poll.isPublic && (!poll.expiresAt && poll.allowDeadlineLater);
 
-    const canUserVote = !isPollExpired && !isPollClosed && !isPollScheduled && !hasVotedThisSession;
 
-    const chartData = {
-        labels: poll.options.map(opt => opt.text),
-        datasets: [{
-            label: 'Votes', data: poll.options.map(opt => opt.votes),
-            backgroundColor: poll.options.map((_, i) => `hsl(${i * (360 / (poll.options.length || 1))}, 70%, 60%)`),
-            borderWidth: 0, borderRadius: 4, barPercentage: 0.7, categoryPercentage: 0.8
-        }],
-    };
-    const chartOptions = {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, title: { display: true, text: 'Current Vote Distribution', font: {size: 16, weight: '600'}, color: '#334155', padding: {bottom: 20} } },
-        scales: { x: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: '#475569' }, grid: { display: false } }, y: { ticks: { color: '#475569' }, grid: { color: '#e2e8f0' } } }
-    };
+    let effectiveHasVoted = false;
+    if (poll.votingType === 'authenticated') {
+        // if hasUserVotedServer is null (still checking or failed), treat as not voted yet to allow UI to show options
+        // but the actual vote attempt will be validated by backend.
+        // A more robust UI might wait or show specific message if hasUserVotedServer is null after loading.
+        effectiveHasVoted = hasUserVotedServer === true;
+    } else { 
+        effectiveHasVoted = hasVotedThisSession;
+    }
+    
+    const canUserVote = !isPollExpired && !isPollClosed && !isPollScheduled && !effectiveHasVoted;
 
     return (
         <div className={styles.pageContainer}>
@@ -195,7 +288,7 @@ function PollVotingPage() {
                     {isPollScheduled && (
                         <div className={`${styles.statusMessage} ${styles.statusScheduled}`}>
                             <ClockSvg />
-                            <span>This private poll is scheduled and will be started by the creator.</span>
+                            <span>This private poll is scheduled. The creator will set a deadline.</span>
                         </div>
                     )}
                      {isPollClosed && !isPollScheduled && (
@@ -204,13 +297,14 @@ function PollVotingPage() {
                             <span>This poll has ended.</span>
                         </div>
                     )}
-                    {error && <p className={`${styles.statusMessage} ${styles.statusError}`}><ShieldExclamationSvg />{error}</p>}
+                    {/* Display general error messages if any, but not if it's about vote status if already handled */}
+                    {error && !error.toLowerCase().includes("voting status") && <p className={`${styles.statusMessage} ${styles.statusError}`}><ShieldExclamationSvg />{error}</p>}
                 </div>
 
                 {isCreator && !poll.isPublic && poll.status === 'active' && !isPollClosed && !isPollExpired && (
                     <div className={styles.creatorActionsSection}>
-                         <button onClick={handleStopPoll} disabled={isProcessing} className={styles.stopPollButton}>
-                            {isProcessing ? "Stopping..." : <><StopSvg /> Stop Poll & Show Results to Voters</>}
+                         <button onClick={handleStopPoll} disabled={isProcessingVote} className={styles.stopPollButton}>
+                            {isProcessingVote ? "Stopping..." : <><StopSvg /> Stop Poll & Show Results to Voters</>}
                         </button>
                     </div>
                 )}
@@ -232,14 +326,14 @@ function PollVotingPage() {
                                 </label>
                             ))}
                         </div>
-                        <button onClick={handleVote} disabled={isProcessing || !selectedOptionId}
+                        <button onClick={handleVote} disabled={isProcessingVote || !selectedOptionId}
                             className={styles.submitVoteButton}>
-                            {isProcessing ? <svg className={styles.buttonSpinner} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{opacity:0.25}}></circle><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" style={{opacity:0.75}} fill="currentColor"></path></svg> : 'Submit Vote'}
+                            {isProcessingVote ? <svg className={styles.buttonSpinner} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{opacity:0.25}}></circle><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" style={{opacity:0.75}} fill="currentColor"></path></svg> : 'Submit Vote'}
                         </button>
                     </div>
                 )}
 
-                {hasVotedThisSession && !canUserVote && !isPollExpired && !isPollClosed && (
+                {effectiveHasVoted && !isPollExpired && !isPollClosed && ( 
                     <div className={styles.statusVoted}>
                         <CheckCircleSvg />
                         <div>
@@ -252,7 +346,8 @@ function PollVotingPage() {
                         </div>
                     </div>
                 )}
-                {(isPollExpired || isPollClosed) && !canUserVote && (
+                
+                {(isPollExpired || isPollClosed) && ( 
                      <div className={`${styles.statusMessage} ${styles.statusInfo}`} style={{borderBottom: '1px solid var(--border-color-soft, #e5e7eb)'}}>
                         <ClockSvg />
                         <h3 className={styles.statusVotedTitle} style={{color: 'inherit'}}>
@@ -280,7 +375,7 @@ function PollVotingPage() {
                 )}
                 
                 { (poll.isPublic && (isPollExpired || isPollClosed || showSimpleResultsOnPage)) || 
-                  (!poll.isPublic && isPollClosed && (isCreator || hasVotedThisSession)) 
+                  (!poll.isPublic && isPollClosed && (isCreator || effectiveHasVoted)) 
                 ? (
                      <div className={styles.detailedResultsLinkContainer}>
                         <Link to={`/poll/${idToUse}/results`} className={styles.detailedResultsLink}>

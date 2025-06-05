@@ -19,6 +19,7 @@ router.post('/:id/stop', protect, pollController.stopPoll);
 // DELETE /api/polls/:id - Delete a poll (requires auth & ownership)
 router.delete('/:id', protect, pollController.deletePoll);
 
+router.get('/:id/vote-status', protect, pollController.getUserVoteStatus);
 // POST /api/polls/:id/vote - Cast a vote // protect middleware might be added based on poll settings
 router.post('/:id/vote', protect, pollController.castVote);
 module.exports = router;

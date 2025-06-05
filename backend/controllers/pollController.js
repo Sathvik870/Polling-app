@@ -370,3 +370,28 @@ exports.deletePoll = asyncHandler(async (req, res) => {
 
       res.json(updatedPoll);
   });
+  exports.getUserVoteStatus = asyncHandler(async (req, res) => {
+    const pollIdentifier = req.params.id;
+    let poll;
+
+    // Find the poll by _id or shortId
+    if (mongoose.Types.ObjectId.isValid(pollIdentifier)) {
+        poll = await Poll.findById(pollIdentifier);
+    }
+    if (!poll) {
+        poll = await Poll.findOne({ shortId: pollIdentifier });
+    }
+
+    if (!poll) {
+        res.status(404);
+        throw new Error('Poll not found');
+    }
+
+    // req.user.id is from the 'protect' middleware
+    const existingVote = await Vote.findOne({
+        poll: poll._id,
+        voterIdentifier: req.user.id // For authenticated users, voterIdentifier is their ID
+    });
+
+    res.json({ hasVoted: !!existingVote });
+});
