@@ -64,6 +64,6 @@ export const registerUser = (userData) => apiClient.post('/auth/register', userD
 export const getMe = () => apiClient.get('/auth/me');
 // Add other user-specific API calls here as needed, e.g., for dashboard
 export const getUserPolls = () => apiClient.get('/api/user/polls');
-
+export const checkUserVoteStatus = (pollId) => apiClient.get(`/api/polls/${pollId}/vote-status`);
 
 export default apiClient;
