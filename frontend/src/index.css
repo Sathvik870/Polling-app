@@ -1,0 +1,190 @@
+/* frontend/src/index.css */
+
+/* 1. Import custom fonts (Google Fonts in this case) FIRST */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Roboto+Slab:wght@400;700&display=swap');
+
+/* Basic Reset */
+body, h1, h2, h3, h4, h5, h6, p, ol, ul {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* -------- THEME VARIABLES -------- */
+:root {
+  /* --- Light Theme (Default) --- */
+  --background-primary: #f0f2f5;       /* Example: Very light almost white-grey */
+  --background-secondary: #ffffff;     /* White for cards, modals, etc. */
+  --background-accent: #eef2ff;       /* Example: Indigo-50 for subtle accents */
+
+  --text-primary: #1f2937;           /* Example: Tailwind gray-800 (Darker for more contrast) */
+  --text-secondary: #4b5563;        /* Example: Tailwind gray-600 (Slightly lighter) */
+  --text-muted: #6b7280;            /* Example: Tailwind gray-500 (For less important text) */
+  --text-heading: #111827;           /* Example: Tailwind gray-900 (Very dark for headings) */
+  --text-on-accent: #ffffff;         /* Text color for on top of accent-color backgrounds */
+  --text-on-primary-button: #ffffff; /* Text on primary action buttons */
+
+
+  --border-color: #d1d5db;           /* Example: Tailwind gray-300 (Standard borders) */
+  --border-color-soft: #e5e7eb;     /* Example: Tailwind gray-200 (Softer dividers) */
+
+  --accent-color: #4f46e5;           /* Example: Indigo-600 (Primary action color) */
+  --accent-color-hover: #4338ca;      /* Example: Indigo-700 (Hover for primary action) */
+  --accent-color-text: #4f46e5;       /* Text that should be in accent color (e.g., links) */
+
+  --button-secondary-bg: #e0e7ff;       /* Example: Indigo-100 */
+  --button-secondary-text: #3730a3;    /* Example: Indigo-800 */
+  --button-secondary-hover-bg: #c7d2fe; /* Example: Indigo-200 */
+  --button-secondary-border: #a5b4fc;  /* Example: Indigo-300 */
+
+  --danger-color: #ef4444;            /* Example: Red-500 */
+  --danger-color-hover: #dc2626;      /* Example: Red-600 */
+  --danger-text-on-bg: #fee2e2;       /* Example: Red-50 for text on red bg */
+  --danger-bg-soft: #fee2e2;          /* Example: Red-50 for error message backgrounds */
+
+  --success-color: #22c55e;           /* Example: Green-500 */
+  --success-text-on-bg: #f0fdf4;      /* Example: Green-50 for text on green bg */
+  --success-bg-soft: #f0fdf4;         /* Example: Green-50 for success message backgrounds */
+
+  /* --- Default Font & Base Colors --- */
+  font-family: 'Inter', sans-serif;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--background-primary);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+/* --- Dark Theme --- */
+html[data-theme='dark'] {
+  --background-primary: #111827;    /* Tailwind gray-900 (Very dark) */
+  --background-secondary: #1f2937; /* Tailwind gray-800 (Slightly lighter for cards) */
+  --background-accent: #374151;    /* Tailwind gray-700 for subtle accents */
+
+  --text-primary: #e5e7eb;          /* Tailwind gray-200 (Light text for body) */
+  --text-secondary: #9ca3af;       /* Tailwind gray-400 (Slightly darker light text) */
+  --text-muted: #6b7280;           /* Tailwind gray-500 (Muted text) */
+  --text-heading: #f3f4f6;          /* Tailwind gray-100 (Very light for headings) */
+  --text-on-accent: #111827;        /* Dark text on (now lighter) accent backgrounds in dark mode */
+  --text-on-primary-button: #ffffff;
+
+  --border-color: #4b5563;          /* Tailwind gray-600 (Darker borders) */
+  --border-color-soft: #374151;    /* Tailwind gray-700 (Softer dividers) */
+
+  --accent-color: #818cf8;          /* Example: Indigo-400 (Lighter accent for dark mode) */
+  --accent-color-hover: #a78bfa;     /* Example: Purple-400 (Lighter hover) */
+  --accent-color-text: #818cf8;      /* Text that should be in accent color */
+
+  --button-secondary-bg: #312e81;      /* Example: Indigo-800 */
+  --button-secondary-text: #c7d2fe;   /* Example: Indigo-200 */
+  --button-secondary-hover-bg: #3730a3;/* Example: Indigo-700 */
+  --button-secondary-border: #4f46e5; /* Example: Indigo-600 */
+
+  --danger-color: #f87171;            /* Example: Red-400 */
+  --danger-color-hover: #ef4444;      /* Example: Red-500 */
+  --danger-text-on-bg: #1f2937;       /* Dark text on light red bg if needed */
+  --danger-bg-soft: #450a0a;          /* Dark red-ish for error message backgrounds */
+
+
+  --success-color: #4ade80;           /* Example: Green-400 */
+  --success-text-on-bg: #111827;      /* Dark text on light green bg if needed */
+  --success-bg-soft: #14532d;         /* Dark green-ish for success message backgrounds */
+}
+/* -------- END THEME VARIABLES -------- */
+
+
+/* Global heading styles */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Roboto Slab', serif;
+  font-weight: 700;
+  color: var(--text-heading); /* Uses theme variable */
+  line-height: 1.3;
+}
+
+/* Global link styling */
+a {
+  color: var(--accent-color-text); /* Use a specific variable for link text */
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+a:hover {
+  text-decoration: underline;
+  /* Define a hover color for links if different from accent-color-dark */
+  /* color: var(--accent-color-dark); */
+}
+.react-datepicker-wrapper input[type="text"] {
+  /* Your desired input styles */
+  display: block;
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  /* etc. */
+}
+.react-datepicker-wrapper input[type="text"]:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 1px #4f46e5;
+}
+/* In index.css or App.css */
+.app-layout-flex-column {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-primary); /* Uses theme variable */
+  color: var(--text-primary); /* Uses theme variable */
+}
+
+.app-main-content-area {
+  flex-grow: 1; /* Allows main content to take available space, pushing footer down */
+  max-width: 1280px; /* Example max-width for content */
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem; /* Example padding */
+}
+@media (min-width: 640px) { /* sm */
+  .app-main-content-area {
+    padding: 1.5rem;
+  }
+}
+@media (min-width: 1024px) { /* lg */
+  .app-main-content-area {
+    padding: 2rem;
+  }
+}
+
+.loading-indicator-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 16rem; /* h-64 equivalent */
+  /* Add spinner styles or more text styling here */
+}
+.loading-indicator-container p {
+    font-size: 1.125rem; /* text-lg */
+    color: var(--text-secondary);
+}
+
+.app-footer {
+  background-color: #1f2937; /* Example: slate-800 */
+  color: white;
+  text-align: center;
+  padding: 1.5rem; /* Increased padding */
+  font-size: 0.875rem; /* text-sm */
+  margin-top: auto; /* Pushes footer to bottom if content is short */
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

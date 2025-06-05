@@ -1,0 +1,63 @@
+
+    //In a scheduler setup (e.g., server.js or a dedicated cron.js)
+    const cron = require('node-cron');
+    const Poll = require('./models/Poll');
+    const Vote = require('./models/Vote');
+    const Notification = require('./models/Notification');
+    const User = require('./models/User');   //If you need user details for socket targeting
+    const io = require('./socketInstance');  // Assuming you export your io instance
+
+    cron.schedule('* * * * *', async () => {   Runs every minute
+      console.log('Scheduler: Checking for expired polls...');
+      try {
+          const now = new Date();
+          const expiredPolls = await Poll.find({
+              status: 'active',   Only find active polls
+              expiresAt: { $lte: now }   Where expiry time is past or now
+          });
+
+          for (const poll of expiredPolls) {
+              poll.status = 'closed';
+                Optionally, ensure expiresAt is exactly 'now' if it was slightly in the past
+                poll.expiresAt = now; 
+              await poll.save();
+             console.log(`Scheduler: Poll "${poll.question}" status set to closed.`);
+
+                Find unique voters for this poll
+                Assuming Vote model stores voterIdentifier as user._id for authenticated votes
+              const votes = await Vote.find({ poll: poll._id }).distinct('voterIdentifier');
+              const voterUserIds = votes.filter(id => mongoose.Types.ObjectId.isValid(id));   Filter for valid ObjectIds
+
+              for (const userId of voterUserIds) {
+                  if (poll.creator.toString() !== userId.toString()) {   Don't notify the creator this way
+                      await Notification.create({
+                          userId: userId,
+                          message: `Results for the poll "${poll.question}" are now published!`,
+                          link: `/poll/${poll.shortId || poll._id}/results`,
+                          relatedPollId: poll._id
+                      });
+
+                        OPTIONAL: Real-time notification to specific user if they are online
+                        This requires mapping user IDs to socket IDs.
+                        findUserSocketId(userId).then(socketId => {
+                          if (socketId && io) {
+                            io.to(socketId).emit('new_notification', { message: `Results for "${poll.question}" published!` });
+                          }
+                        });
+                  }
+              }
+              console.log(`Scheduler: Notifications created for voters of "${poll.question}".`);
+
+                Emit a general 'poll_closed' event for real-time UI updates on PollVotingPage/ResultsPage
+              if (io) {
+                   const pollDataForEmit = { _id: poll._id.toString(), shortId: poll.shortId, status: poll.status, expiresAt: poll.expiresAt.toISOString(), question: poll.question };
+                   io.to(poll._id.toString()).emit('poll_closed', pollDataForEmit);
+                   if(poll.shortId) io.to(poll.shortId).emit('poll_closed', pollDataForEmit);
+              }
+          }
+      } catch (error) {
+          console.error('Scheduler error:', error);
+      }
+    });
+  ```
+  *This scheduler part is complex to integrate fully here, but it's the standard pattern.*/

@@ -1,0 +1,41 @@
+/* frontend/src/components/Auth/AuthCallback.module.css */
+
+.container {
+  min-height: 100vh; /* Full viewport height */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #f1f5f9; /* Example: slate-100 */
+  padding: 1rem;
+  text-align: center;
+}
+
+.spinner {
+  height: 3rem; /* Corresponds to h-12 */
+  width: 3rem;  /* Corresponds to w-12 */
+  color: #4f46e5; /* Corresponds to text-indigo-600 */
+  margin-bottom: 1rem; /* Corresponds to mb-4 */
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.titleText {
+  font-size: 1.125rem; /* Corresponds to text-lg */
+  color: #334155; /* Corresponds to text-slate-700 */
+  font-weight: 500; /* Corresponds to font-medium */
+  margin-bottom: 0.25rem; /* For spacing if needed */
+}
+
+.subtitleText {
+  font-size: 0.875rem; /* Corresponds to text-sm */
+  color: #64748b; /* Corresponds to text-slate-500 */
+}

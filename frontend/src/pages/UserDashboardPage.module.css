@@ -1,0 +1,416 @@
+/* frontend/src/pages/UserDashboardPage.module.css */
+
+.pageContainer {
+  max-width: 1152px; /* 7xl */
+  margin-left: auto;
+  margin-right: auto;
+  padding: 2rem 1rem; /* py-8 px-4 */
+  font-family: 'Inter', sans-serif;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem; /* For spacing between title group and button on small screens */
+  justify-content: space-between;
+  align-items: flex-start; /* Align to start for title group */
+  margin-bottom: 2rem; /* mb-8 */
+  padding-bottom: 1rem; /* pb-4 */
+  border-bottom: 1px solid #e5e7eb; /* border-slate-200 */
+}
+@media (min-width: 640px) { /* sm breakpoint */
+  .header {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.headerTitleGroup {
+  /* No specific styles needed if text alignment is default (left) */
+}
+
+.pageTitle {
+  font-size: 1.875rem; /* text-2xl sm:text-3xl */
+  line-height: 2.25rem;
+  font-weight: 700; /* font-bold */
+  color: #1e293b; /* slate-800 */
+  font-family: 'Roboto Slab', serif;
+}
+@media (min-width: 640px) { /* sm breakpoint */
+  .pageTitle {
+    font-size: 1.875rem; /* text-3xl */
+    line-height: 2.25rem;
+  }
+}
+
+.pageSubtitle {
+  font-size: 0.875rem; /* text-sm */
+  color: #64748b; /* slate-500 */
+  margin-top: 0.25rem; /* mt-1 */
+}
+
+.createPollButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem; /* px-4 py-2 */
+  border: 1px solid transparent;
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500; /* font-medium */
+  border-radius: 0.375rem; /* rounded-md */
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+  color: white;
+  background-color: #4f46e5; /* indigo-600 */
+  text-decoration: none;
+  transition: background-color 0.15s ease-in-out;
+}
+.createPollButton:hover {
+  background-color: #4338ca; /* hover:bg-indigo-700 */
+}
+.buttonIcon { /* For the PlusSvg */
+  height: 1.25rem; /* h-5 */
+  width: 1.25rem; /* w-5 */
+  margin-right: 0.5rem; /* mr-2 */  
+}
+
+.overallErrorText {
+    margin-bottom: 1rem;
+    border-radius: 0.375rem;
+    background-color: #fef2f2; /* bg-red-50 or bg-red-100 */
+    padding: 0.75rem; /* p-3 */
+    font-size: 0.875rem; /* text-sm */
+    color: #b91c1c; /* text-red-700 */
+    text-align: center;
+}
+
+
+/* Layout for dashboard sections */
+.dashboardLayout {
+    display: grid;
+    grid-template-columns: 1fr; /* Default to single column */
+    gap: 2rem; /* gap-8 */
+}
+@media (min-width: 1024px) { /* lg breakpoint */
+    .dashboardLayout {
+        grid-template-columns: repeat(3, minmax(0, 1fr)); /* lg:grid-cols-3 */
+    }
+}
+
+.mainContent {
+    grid-column: span 1 / span 1; /* Default */
+    display: flex;
+    flex-direction: column;
+    gap: 2rem; /* space-y-8 (applied via flex gap) */
+}
+@media (min-width: 1024px) { /* lg breakpoint */
+    .mainContent {
+        grid-column: span 2 / span 2; /* lg:col-span-2 */
+    }
+}
+.sidebar {
+    grid-column: span 1 / span 1; /* Default */
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem; /* space-y-6 */
+}
+
+
+.dashboardSection {
+  /* Common styling for sections if any, or handled by children */
+   margin-bottom: 2rem; /* Add some space between sections if not using flex gap on parent */
+}
+.dashboardSection:last-child {
+    margin-bottom: 0;
+}
+
+
+.sectionTitle {
+  font-size: 1.25rem; /* text-xl */
+  font-weight: 600; /* font-semibold */
+  color: #334155; /* slate-700 */
+  margin-bottom: 1rem; /* mb-4 or mb-5 */
+  font-family: 'Roboto Slab', serif;
+}
+
+.pollsGrid { /* For created polls */
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr)); /* default */
+  gap: 1.5rem; /* gap-6 */
+}
+@media (min-width: 768px) { /* md breakpoint */
+  .pollsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* md:grid-cols-2 */
+  }
+}
+/* For lg and up, it might still be 2 cols if mainContent is col-span-2 of 3, or adjust if needed */
+
+
+.pollCard {
+  background-color: white;
+  padding: 1.25rem; /* p-5 */
+  border-radius: 0.5rem; /* rounded-lg */
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); /* shadow-md */
+  transition: box-shadow 0.2s ease-in-out;
+}
+.pollCard:hover {
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); /* hover:shadow-lg */
+}
+.pollCardLink {
+    text-decoration: none;
+}
+.pollCardLink:hover .pollCardTitle {
+    color: #4f46e5; /* indigo-600 */
+}
+
+.pollCardTitle {
+  font-size: 1rem; /* text-md */
+  font-weight: 500; /* font-medium */
+  color: #334155; /* slate-700 */
+  margin-bottom: 0.5rem; /* mb-2 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; /* Change if you want line-clamp */
+}
+
+.pollCardMeta {
+  font-size: 0.75rem; /* text-xs */
+  color: #64748b; /* gray-500 */
+  margin-bottom: 0.25rem; /* mb-1 */
+}
+
+.pollCardDetails {
+  font-size: 0.75rem; /* text-xs */
+  color: #64748b; /* gray-500 */
+  margin-bottom: 0.75rem; /* mb-3 */
+}
+
+.pollCardExpiryStatus {
+  margin-left: 0.5rem; /* ml-2 */
+}
+.pollCardExpiryExpired {
+  color: #dc2626; /* text-red-500 */
+}
+.pollCardExpiryActive {
+  color: #16a34a; /* text-green-600 */
+}
+
+.pollCardActions {
+  margin-top: 1rem; /* mt-4 */
+  padding-top: 1rem; /* pt-4 */
+  border-top: 1px solid #f1f5f9; /* border-slate-100 */
+  display: flex;
+  flex-direction: column; /* Stack on small screens */
+  gap: 0.5rem; /* space-y-2 */
+}
+@media (min-width: 640px) { /* sm breakpoint */
+  .pollCardActions {
+    flex-direction: row;
+    justify-content: space-between; /* Or space-x-2 if you want them grouped */
+    gap: 0.5rem; /* space-x-2 */
+  }
+}
+
+.actionButton {
+  font-size: 0.75rem; /* text-xs */
+  padding: 0.375rem 0.75rem; /* px-3 py-1.5 */
+  border-radius: 0.375rem; /* rounded-md */
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center; /* Center content in button */
+  flex-grow: 1; /* Make buttons take equal space in flex row */
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+.actionButtonIcon { /* For SVGs inside buttons */
+    height: 1rem; /* h-4 */
+    width: 1rem; /* w-4 */
+    margin-right: 0.375rem; /* mr-1.5 */
+}
+
+.actionButtonView {
+  border: 1px solid #cbd5e1; /* border-slate-300 */
+  color: #334155; /* text-slate-700 */
+  background-color: white;
+}
+.actionButtonView:hover {
+  background-color: #f8fafc; /* hover:bg-slate-50 */
+}
+
+.actionButtonDelete {
+  border: 1px solid #fca5a5; /* border-red-300 */
+  color: #b91c1c; /* text-red-700 */
+  background-color: #fef2f2; /* bg-red-50 */
+}
+.actionButtonDelete:hover {
+  background-color: #fee2e2; /* hover:bg-red-100 */
+}
+
+.noDataMessageContainer, .noPollsMessageContainer /* Renamed for clarity */ {
+  text-align: center;
+  padding: 1.5rem 0; /* py-6 */
+  border: 2px dashed #e2e8f0; /* border-slate-200 */
+  border-radius: 0.5rem; /* rounded-lg */
+}
+.noDataIcon, .noPollsIcon /* Renamed for clarity */ {
+    margin-left: auto;
+    margin-right: auto;
+    height: 3rem; /* h-12 */
+    width: 3rem; /* w-12 */
+    color: #cbd5e1; /* text-slate-300 */
+}
+.noDataTitle, .noPollsTitle /* Renamed for clarity */ {
+    margin-top: 0.5rem; /* mt-2 */
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500; /* font-medium */
+    color: #1e293b; /* slate-800 */
+}
+.noDataSubtitle, .noPollsSubtitle /* Renamed for clarity */ {
+    margin-top: 0.25rem; /* mt-1 */
+    font-size: 0.875rem; /* text-sm */
+    color: #64748b; /* slate-500 */
+}
+
+.loadingText, .errorText {
+  text-align: center;
+  padding: 2.5rem 0; /* py-10 */
+  color: #475569; /* slate-600 for loading */
+}
+.errorText {
+  color: #dc2626; /* text-red-600 */
+  background-color: #fee2e2; /* bg-red-50 */
+  padding: 1rem;
+  border-radius: 0.375rem; /* rounded-md */
+}
+
+/* Styles for Voting History */
+.historyListContainer {
+    background-color: white;
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); /* shadow */
+    border-radius: 0.375rem; /* rounded-md */
+}
+.historyList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    /* divide-y divide-slate-200 equivalent */
+}
+.historyListItem {
+    padding: 1rem; /* p-4 */
+    transition: background-color 0.15s ease-in-out;
+    border-bottom: 1px solid #e2e8f0; /* slate-200 */
+}
+.historyListItem:last-child {
+    border-bottom: none;
+}
+.historyListItem:hover {
+    background-color: #f8fafc; /* hover:bg-slate-50 */
+}
+.historyItemContent {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem; /* space-x-4 (gap applies to flex children) */
+}
+.voteDetails {
+    font-size: 0.875rem; /* text-sm */
+    color: #64748b; /* slate-500 */
+}
+.votedOption {
+    font-weight: 600; /* font-semibold */
+    color: #4f46e5; /* indigo-600 */
+}
+.votePollQuestion {
+    font-size: 1rem; /* text-md */
+    font-weight: 500; /* font-medium */
+    color: #334155; /* slate-700 */
+    margin-top: 0.125rem; /* mt-0.5 */
+}
+.pollLink {
+    text-decoration: none;
+    color: inherit; /* Inherit color from parent (.votePollQuestion) */
+}
+.pollLink:hover {
+    text-decoration: underline;
+}
+.voteTimestamp {
+    font-size: 0.75rem; /* text-xs */
+    color: #94a3b8; /* slate-400 */
+    white-space: nowrap;
+    margin-left: 1rem; /* ml-4, ensures space if text wraps */
+}
+
+
+/* Styles for Notifications */
+.notificationsContainer {
+    background-color: white;
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); /* shadow */
+    border-radius: 0.375rem; /* rounded-md */
+    max-height: 24rem; /* max-h-96 */
+    overflow-y: auto;
+}
+.notificationsList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    /* divide-y divide-slate-200 */
+}
+.notificationItem {
+    padding: 0.75rem; /* p-3 */
+    transition: background-color 0.15s ease-in-out, opacity 0.15s ease-in-out;
+    border-bottom: 1px solid #e2e8f0; /* slate-200 */
+}
+.notificationItem:last-child {
+    border-bottom: none;
+}
+.notificationItemRead {
+    background-color: #f8fafc; /* bg-slate-50 */
+    opacity: 0.7;
+}
+.notificationItem:not(.notificationItemRead):hover {
+    background-color: #eef2ff; /* hover:bg-indigo-50 */
+}
+
+.notificationContent {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start; /* Align items to the top */
+}
+.notificationMessageArea {
+    flex-grow: 1; /* Take available space */
+    padding-right: 0.5rem; /* pr-2, space before button */
+}
+.notificationMessage {
+    display: block; /* For Link to behave like a block */
+    font-size: 0.875rem; /* text-sm */
+    color: #334155; /* text-slate-700 */
+    text-decoration: none;
+}
+.notificationItemRead .notificationMessage { /* If read, different color */
+    color: #64748b; /* text-slate-500 */
+}
+.notificationMessage:not(.notificationItemRead) {
+    font-weight: 500; /* font-medium for unread messages */
+}
+
+.notificationTimestamp {
+    font-size: 0.75rem; /* text-xs */
+    color: #94a3b8; /* slate-400 */
+    margin-top: 0.125rem; /* mt-0.5 */
+}
+.markAsReadButton {
+    flex-shrink: 0; /* Prevent button from shrinking */
+    padding: 0.25rem; /* p-1 */
+    border-radius: 9999px; /* rounded-full */
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8; /* text-slate-400 */
+    transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+.markAsReadButton:hover {
+    background-color: #e2e8f0; /* hover:bg-slate-200 */
+    color: #475569; /* hover:text-slate-600 */
+}
+.markAsReadIcon { /* For the SVG inside button */
+    height: 1rem; /* h-4 */
+    width: 1rem; /* w-4 */
+}

@@ -1,0 +1,145 @@
+/* frontend/src/pages/SettingsPage.module.css */
+.pageContainer {
+  max-width: 800px; /* Adjust as needed */
+  margin: 2rem auto;
+  padding: 1rem;
+  font-family: 'Inter', sans-serif;
+  color: var(--text-primary); /* Uses CSS variables for theme */
+  background-color: var(--background-primary); /* Uses CSS variables for theme */
+}
+
+.settingsCard {
+  background-color: var(--background-secondary);
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.pageTitle {
+  font-family: 'Roboto Slab', serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin-bottom: 2rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1rem;
+}
+
+.settingItem {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.settingItem:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+@media (min-width: 640px) {
+    .settingItem {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+}
+
+
+.settingLabelContainer {
+    flex-grow: 1;
+    margin-right: 1rem; /* Space for control on larger screens */
+}
+
+.settingTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.settingDescription {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  max-width: 400px; /* Limit width for readability */
+}
+
+.settingControl {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Align toggle to left on small screens */
+}
+@media (min-width: 640px) {
+    .settingControl {
+        align-items: flex-end; /* Align toggle to right on larger screens */
+    }
+}
+
+
+.toggleLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.themeToggleButton {
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  border-radius: 20px; /* Pill shape */
+  cursor: pointer;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  min-width: 100px; /* Ensure some width for text */
+  justify-content: center;
+}
+.themeToggleButton:hover {
+  background-color: var(--button-secondary-hover-bg);
+}
+.themeToggleButtonDark { /* Active state for dark mode */
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+.themeToggleButtonDark:hover {
+  background-color: var(--accent-color-dark);
+}
+
+.toggleIndicator {
+  display: inline-block;
+  /* Basic styling, can be enhanced */
+}
+.toggleIndicator span {
+    font-size: 1rem; /* Emoji size */
+}
+
+.saveButtonContainer {
+    margin-top: 2.5rem;
+    text-align: right;
+}
+.saveButton {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.saveButton:hover {
+    background-color: var(--accent-color-dark);
+}
+
+.notice {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 2rem;
+}

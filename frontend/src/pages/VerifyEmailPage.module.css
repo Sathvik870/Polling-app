@@ -1,0 +1,108 @@
+/* frontend/src/pages/VerifyEmailPage.module.css */
+
+.pageContainer {
+  min-height: calc(100vh - 10rem); /* Adjust based on nav/footer */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem 1rem; /* py-10 px-4 */
+  background-color: #f1f5f9; /* slate-100 */
+}
+
+.contentBox {
+  max-width: 28rem; /* max-w-md */
+  width: 100%;
+  padding: 2rem; /* p-8 */
+  background-color: white;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); /* shadow-xl */
+  border-radius: 0.5rem; /* rounded-lg */
+}
+
+.icon { /* Common class for status icons */
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 1rem; /* mb-4 */
+}
+.iconVerifying {
+  height: 3rem; /* h-12 */
+  width: 3rem;  /* w-12 */
+  color: #4f46e5; /* text-indigo-600 */
+  animation: spin 1s linear infinite;
+}
+.iconSuccess {
+  height: 4rem; /* h-16 */
+  width: 4rem;  /* w-16 */
+  color: #22c55e; /* text-green-500 */
+}
+.iconError {
+  height: 4rem; /* h-16 */
+  width: 4rem;  /* w-16 */
+  color: #ef4444; /* text-red-500 */
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.titleVerifying {
+  font-size: 1.25rem; /* text-xl */
+  font-weight: 600; /* font-semibold */
+  color: #334155; /* text-slate-700 */
+}
+.titleSuccess {
+  font-size: 1.5rem; /* text-2xl */
+  font-weight: 600; /* font-semibold */
+  color: #15803d; /* text-green-700 */
+  margin-bottom: 0.5rem; /* mb-2 */
+}
+.titleError {
+  font-size: 1.5rem; /* text-2xl */
+  font-weight: 600; /* font-semibold */
+  color: #b91c1c; /* text-red-700 */
+  margin-bottom: 0.5rem; /* mb-2 */
+}
+
+.messageText {
+  color: #475569; /* text-slate-600 */
+}
+.redirectText {
+  margin-top: 1rem; /* mt-4 */
+  font-size: 0.875rem; /* text-sm */
+  color: #64748b; /* text-slate-500 */
+}
+
+.actionsContainer {
+  margin-top: 1.5rem; /* mt-6 */
+  /* For space-x-3, direct margin on children or flex gap if needed */
+}
+.actionButton {
+  padding: 0.5rem 1rem; /* px-4 py-2 */
+  background-color: #4f46e5; /* bg-indigo-600 */
+  color: white;
+  border-radius: 0.375rem; /* rounded-md */
+  text-decoration: none;
+  font-size: 0.875rem; /* text-sm */
+  transition: background-color 0.15s ease-in-out;
+  border: none;
+  cursor: pointer;
+}
+.actionButton:hover {
+  background-color: #4338ca; /* hover:bg-indigo-700 */
+}
+/* If you add a resend button:*/
+.actionButtonSecondary {
+  padding: 0.5rem 1rem;
+  background-color: #e2e8f0; 
+  color: #334155;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: background-color 0.15s ease-in-out;
+  margin-left: 0.75rem;
+}
+.actionButtonSecondary:hover {
+  background-color: #cbd5e1;
+}

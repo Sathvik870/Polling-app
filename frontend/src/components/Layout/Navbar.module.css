@@ -1,0 +1,390 @@
+/* frontend/src/components/Layout/Navbar.module.css */
+
+.navbar {
+  background-color: #334155; /* Example: slate-800 */
+  color: white;
+  padding: 1rem 0; /* Vertical padding */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000; /* Ensure it's on top */
+}
+
+.container {
+  max-width: 1152px; /* Corresponds to max-w-7xl */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem; /* Corresponds to px-4 */
+  padding-right: 1rem; /* Corresponds to px-4 */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4rem; /* Corresponds to h-16 */
+}
+
+.logoLink {
+  display: flex;
+  align-items: center;
+  color: white;
+  text-decoration: none;
+}
+
+.logoSvg {
+  height: 2rem; /* Corresponds to h-8 */
+  width: 2rem;  /* Corresponds to w-8 */
+  color: #818cf8; /* Corresponds to text-indigo-400 */
+}
+
+.logoText {
+  margin-left: 0.5rem; /* Corresponds to ml-2 */
+  font-size: 1.25rem; /* Corresponds to text-xl */
+  font-weight: bold;
+}
+
+.desktopNav {
+  display: none; /* Hidden by default, shown by media query */
+}
+
+.navLinksContainer {
+  display: flex;
+  align-items: center;
+  column-gap: 1rem; /* Corresponds to space-x-4 */
+}
+
+.navLink {
+  color: #d1d5db; /* Corresponds to text-gray-300 */
+  padding: 0.5rem 0.75rem; /* Corresponds to px-3 py-2 */
+  border-radius: 0.375rem; /* Corresponds to rounded-md */
+  text-decoration: none;
+  font-size: 0.875rem; /* Corresponds to text-sm */
+  font-weight: 500; /* Corresponds to font-medium */
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+.navLink:hover {
+  background-color: #475569; /* Corresponds to hover:bg-slate-700 */
+  color: white;
+}
+
+.navLinkActive {
+  background-color: #1e293b; /* Corresponds to bg-slate-900 */
+  color: white;
+}
+
+.authButtonsContainer {
+   display: flex;
+   align-items: center;
+   column-gap: 0.5rem; /* Corresponds to space-x-2 */
+}
+
+.loginLink {
+  /* Same as navLink for consistency or can be different */
+  color: #d1d5db;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+.loginLink:hover {
+  background-color: #475569;
+  color: white;
+}
+
+.registerButton {
+  background-color: #6366f1; /* Corresponds to bg-indigo-500 */
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* Corresponds to shadow-sm */
+  transition: background-color 0.15s ease-in-out;
+}
+.registerButton:hover {
+  background-color: #4f46e5; /* Corresponds to hover:bg-indigo-600 */
+}
+
+.userMenuButton {
+  background-color: #334155; /* Corresponds to bg-slate-800 */
+  display: flex;
+  font-size: 0.875rem; /* Corresponds to text-sm */
+  border-radius: 9999px; /* Corresponds to rounded-full */
+  padding: 0.25rem; /* Corresponds to p-1 */
+  border: none;
+  cursor: pointer;
+}
+.userMenuButton:hover {
+  background-color: #475569; /* Corresponds to hover:bg-slate-700 */
+}
+.userMenuButton:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #334155; /* Focus ring */
+}
+
+.avatar {
+  height: 2rem; /* Corresponds to h-8 */
+  width: 2rem; /* Corresponds to w-8 */
+  border-radius: 9999px;
+  background-color: #6366f1; /* Corresponds to bg-indigo-500 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600; /* Corresponds to font-semibold */
+}
+
+.userMenu {
+  position: relative;
+  margin-left: 0.75rem; /* Corresponds to ml-3 */
+}
+
+.userMenuItems {
+  position: absolute;
+  right: 0;
+  margin-top: 0.5rem; /* Corresponds to mt-2 */
+  width: 12rem; /* Corresponds to w-48 */
+  border-radius: 0.375rem; /* Corresponds to rounded-md */
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); /* Corresponds to shadow-lg */
+  padding-top: 0.25rem; /* Corresponds to py-1 */
+  padding-bottom: 0.25rem;
+  background-color: white;
+  border: 1px solid rgba(0,0,0,0.05); /* Corresponds to ring-1 ring-black ring-opacity-5 */
+  /* Add transition classes if needed for Headless UI Transition */
+}
+.userMenuItemContainer {
+  padding: 0.75rem 1rem; /* Corresponds to px-4 py-3 */
+  border-bottom: 1px solid #f3f4f6; /* Corresponds to border-b */
+}
+.userMenuItemDisplayName {
+  font-size: 0.875rem; /* Corresponds to text-sm */
+  font-weight: 500; /* Corresponds to font-medium */
+  color: #111827; /* Corresponds to text-gray-900 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.userMenuItemEmail {
+  font-size: 0.75rem; /* Corresponds to text-xs */
+  color: #6b7280; /* Corresponds to text-gray-500 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.userMenuItemLink {
+  display: block;
+  padding: 0.5rem 1rem; /* Corresponds to px-4 py-2 */
+  font-size: 0.875rem; /* Corresponds to text-sm */
+  color: #374151; /* Corresponds to text-gray-700 */
+  text-decoration: none;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.userMenuItemLink:hover, .userMenuItemLinkActive {
+  background-color: #f3f4f6; /* Corresponds to bg-gray-100 */
+}
+
+
+.mobileMenuButtonContainer {
+  margin-right: -0.5rem; /* Corresponds to -mr-2 */
+  display: flex;
+  align-items: center;
+}
+
+.mobileMenuButton {
+  background-color: #334155; /* Corresponds to bg-slate-800 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem; /* Corresponds to p-2 */
+  border-radius: 0.375rem; /* Corresponds to rounded-md */
+  color: #9ca3af; /* Corresponds to text-gray-400 */
+  border: none;
+  cursor: pointer;
+}
+.mobileMenuButton:hover {
+  color: white;
+  background-color: #475569; /* Corresponds to hover:bg-slate-700 */
+}
+.mobileMenuButton:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px white; /* Focus ring */
+}
+.mobileMenuIcon {
+  display: block;
+  height: 1.5rem; /* Corresponds to h-6 */
+  width: 1.5rem; /* Corresponds to w-6 */
+}
+
+.mobilePanel {
+  border-top: 1px solid #475569; /* Corresponds to border-slate-700 */
+  /* Add display: none; and toggle with JS/React state for visibility */
+  display: none; /* Initially hidden, toggle with 'open' state */
+}
+.mobilePanelOpen {
+    display: block;
+}
+
+.mobileNavLinksContainer {
+  padding: 0.5rem 0.75rem 0.75rem; /* Corresponds to px-2 pt-2 pb-3 sm:px-3 */
+}
+.mobileNavLink {
+  display: block;
+  padding: 0.5rem 0.75rem; /* Corresponds to px-3 py-2 */
+  border-radius: 0.375rem; /* Corresponds to rounded-md */
+  font-size: 1rem; /* Corresponds to text-base */
+  font-weight: 500; /* Corresponds to font-medium */
+  text-decoration: none;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  color: #d1d5db; /* Corresponds to text-gray-300 */
+}
+.mobileNavLink:hover {
+  background-color: #475569; /* Corresponds to hover:bg-slate-700 */
+  color: white;
+}
+.mobileNavLinkActive {
+  background-color: #1e293b; /* Corresponds to bg-slate-900 */
+  color: white;
+}
+
+.mobileUserSection {
+  padding-top: 1rem;
+  padding-bottom: 0.75rem;
+  border-top: 1px solid #475569;
+}
+.mobileUserInfoContainer {
+  display: flex;
+  align-items: center;
+  padding-left: 1.25rem; /* Corresponds to px-5 */
+  margin-bottom: 0.75rem;
+}
+.mobileAvatarContainer { /* Replaces the span */
+  height: 2.5rem; /* Corresponds to h-10 */
+  width: 2.5rem; /* Corresponds to w-10 */
+  border-radius: 9999px;
+  background-color: #6366f1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+}
+.mobileUserDetails {
+  margin-left: 0.75rem;
+}
+.mobileUserName {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1;
+  color: white;
+}
+.mobileUserEmail {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  color: #9ca3af;
+}
+.mobileUserActionsContainer {
+  padding-left: 0.5rem; /* Corresponds to px-2 */
+  padding-right: 0.5rem;
+}
+
+/* Media query for desktop navigation */
+@media (min-width: 768px) { /* Corresponds to md: prefix */
+  .desktopNav {
+    display: flex;
+  }
+  .mobileMenuButtonContainer {
+    display: none;
+  }
+  .mobilePanel {
+    display: none !important; /* Ensure it's hidden on desktop */
+  }
+}
+/* frontend/src/components/Layout/Navbar.module.css */
+/* ... your existing styles ... */
+
+.navLink {
+  /* ... your existing styles for navLink ... */
+  padding: 0.5rem 0.75rem; /* px-3 py-2 */
+  border-radius: 0.375rem; /* rounded-md */
+  font-size: 0.875rem; /* text-sm */
+  line-height: 1.25rem;
+  font-weight: 500; /* font-medium */
+  color: #d1d5db; /* text-gray-300 */
+  text-decoration: none;
+  display: flex; /* If you plan to add icons */
+  align-items: center; /* If you plan to add icons */
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+.navLink:hover {
+  background-color: #374151; /* hover:bg-slate-700 */
+  color: #ffffff; /* hover:text-white */
+}
+.navLinkActive {
+  background-color: #1f2937; /* bg-slate-900 */
+  color: #ffffff; /* text-white */
+}
+
+.userMenuItemLink {
+  /* ... your existing styles or new styles for user menu items ... */
+  display: block; /* Or 'flex items-center' if adding icons */
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 1rem; /* px-4 py-2 */
+  font-size: 0.875rem; /* text-sm */
+  color: #374151; /* text-gray-700 */
+  text-decoration: none;
+  transition: background-color 0.1s ease-in-out;
+}
+.userMenuItemLink:hover,
+.userMenuItemLinkActive { /* Combine hover and active for user menu */
+  background-color: #f3f4f6; /* bg-gray-100 */
+}
+.userMenuItemButton { /* Specific for button styling if different from NavLink */
+    cursor: pointer;
+}
+
+
+.mobileNavLink {
+  /* ... your existing styles for mobileNavLink ... */
+  display: block;
+  padding: 0.5rem 0.75rem; /* px-3 py-2 */
+  border-radius: 0.375rem; /* rounded-md */
+  font-size: 1rem; /* text-base */
+  font-weight: 500; /* font-medium */
+  color: #d1d5db; /* text-gray-300 */
+  text-decoration: none;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+.mobileNavLink:hover {
+  background-color: #374151; /* hover:bg-slate-700 */
+  color: #ffffff; /* hover:text-white */
+}
+.mobileNavLinkActive {
+  background-color: #1f2937; /* bg-slate-900 */
+  color: #ffffff; /* text-white */
+}
+.mobileButtonFullWidth { /* For the mobile sign out button */
+    width: 100%;
+    text-align: left;
+}
+
+/* ... other styles from your Navbar.module.css ... */
+.userMenuItemIcon {
+    height: 1.25rem; /* h-5 */
+    width: 1.25rem;  /* w-5 */
+    margin-right: 0.5rem; /* mr-2 */
+    color: #9ca3af; /* text-gray-400 or your preferred color */
+    /* Add group-hover color change if desired */
+}
+.userMenuItemLink:hover .userMenuItemIcon { /* Example for group hover effect */
+    color: #6b7280; /* text-gray-500 */
+}

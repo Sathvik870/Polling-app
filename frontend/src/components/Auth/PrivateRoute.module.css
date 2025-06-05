@@ -1,0 +1,74 @@
+/* frontend/src/components/Auth/PrivateRoute.module.css */
+
+.loadingContainer,
+.accessDeniedContainer {
+  min-height: 100vh; /* Or calc(100vh - NavHeight - FooterHeight) if you have them */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #f1f5f9; /* Example: slate-100 */
+  padding: 1rem; /* For smaller screens */
+}
+
+.spinner {
+  height: 2.5rem; /* Corresponds to h-10 */
+  width: 2.5rem;  /* Corresponds to w-10 */
+  color: #4f46e5; /* Corresponds to text-indigo-600 */
+  margin-bottom: 0.75rem; /* Corresponds to mb-3 */
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loadingText,
+.accessDeniedMessage {
+  color: #475569; /* Corresponds to text-slate-600 */
+}
+
+.accessDeniedBox {
+  max-width: 28rem; /* Corresponds to max-w-md */
+  padding: 2rem; /* Corresponds to p-8 */
+  background-color: white;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); /* Corresponds to shadow-lg */
+  border-radius: 0.5rem; /* Corresponds to rounded-lg */
+  text-align: center;
+}
+
+.accessDeniedIcon { /* Placeholder for ShieldExclamationIcon */
+  height: 3rem; /* Corresponds to h-12 */
+  width: 3rem;  /* Corresponds to w-12 */
+  color: #ef4444; /* Corresponds to text-red-500 */
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 1rem; /* Corresponds to mb-4 */
+}
+
+.accessDeniedTitle {
+  font-size: 1.25rem; /* Corresponds to text-xl */
+  font-weight: 600; /* Corresponds to font-semibold */
+  color: #b91c1c; /* Corresponds to text-red-700 */
+}
+
+.goBackButton {
+  margin-top: 1.5rem; /* Corresponds to mt-6 */
+  padding: 0.5rem 1rem; /* Corresponds to px-4 py-2 */
+  background-color: #4f46e5; /* Corresponds to bg-indigo-600 */
+  color: white;
+  border-radius: 0.375rem; /* Corresponds to rounded-md */
+  font-size: 0.875rem; /* Corresponds to text-sm */
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.goBackButton:hover {
+  background-color: #4338ca; /* Corresponds to hover:bg-indigo-700 */
+}
