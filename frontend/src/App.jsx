@@ -1,8 +1,8 @@
 // frontend/src/App.jsx
-import React, { useState, useEffect, createContext, useContext } from 'react'; // useContext was already implicitly used by other components, explicit here for clarity if needed by App itself
-import { Routes, Route, useNavigate, useLocation, Link } from 'react-router-dom'; // Added Link for toast
+import React, { useState, useEffect, createContext, useCallback } from 'react';
+import { Routes, Route, useNavigate, Link, useLocation } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-import apiClient from './services/api'; // Your API client
+import apiClient, { getUserNotifications, markNotificationRead as apiMarkNotificationRead } from './services/api';
 
 // Socket.IO and Toast
 import io from 'socket.io-client';
@@ -38,36 +38,52 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const navigate = useNavigate();
+  
+  // Global Notification State
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  // Function to fetch initial notifications
+  const fetchUserNotifications = useCallback(async () => {
+    if (!currentUser) { // If no user, clear notifications
+        setNotifications([]);
+        setUnreadNotificationCount(0);
+        return;
+    }
+    try {
+      const response = await getUserNotifications(); // From api.js
+      setNotifications(response.data || []);
+      setUnreadNotificationCount((response.data || []).filter(n => !n.read).length);
+    } catch (error) {
+      console.error("App.jsx: Failed to fetch user notifications:", error);
+      setNotifications([]); // Clear on error to avoid stale data
+      setUnreadNotificationCount(0);
+    }
+  }, [currentUser]); // Dependency on currentUser
 
   // Effect for loading initial theme and user session
   useEffect(() => {
     const savedTheme = localStorage.getItem('appTheme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
-    console.log(`App.jsx: Initial theme set to ${savedTheme}`);
 
     setIsLoadingAuth(true);
     const token = localStorage.getItem('pollAppToken');
-    console.log('APP.JSX - Initial token check from localStorage:', token);
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        console.log('APP.JSX - Decoded token:', decoded);
         if (decoded.exp * 1000 < Date.now()) {
-          console.log('APP.JSX - Token expired, removing.');
           localStorage.removeItem('pollAppToken');
-          setCurrentUser(null);
+          setCurrentUser(null); 
           setIsLoadingAuth(false);
         } else {
-          console.log('APP.JSX - Token valid, fetching /auth/me');
           apiClient.get('/auth/me')
             .then(response => {
-              console.log('APP.JSX - /auth/me response:', response.data);
               setCurrentUser(response.data);
             })
             .catch(error => {
               console.error("APP.JSX - Failed to fetch user with token:", error);
               localStorage.removeItem('pollAppToken');
-              setCurrentUser(null);
+              setCurrentUser(null); 
             })
             .finally(() => {
               setIsLoadingAuth(false);
@@ -76,68 +92,111 @@ function App() {
       } catch (error) {
         console.error("APP.JSX - Invalid token on load (decode error):", error);
         localStorage.removeItem('pollAppToken');
-        setCurrentUser(null);
+        setCurrentUser(null); 
         setIsLoadingAuth(false);
       }
     } else {
-        console.log('APP.JSX - No token found in localStorage on initial load.');
+        setCurrentUser(null); 
         setIsLoadingAuth(false);
     }
-    
   }, []); // Empty dependency array: runs once on mount
 
-  // New useEffect for global socket listeners for "results published"
+  // Effect to fetch notifications when currentUser changes (login/logout)
   useEffect(() => {
-     if (currentUser?._id) { // Only listen if a user is logged in and has an ID
-         socket.on('results_published_for_poll', (eventData) => {
-             console.log('App.jsx: Received results_published_for_poll', eventData);
-             // Check if the current user is in the list of users to be notified
-             if (eventData.notifiedUserIds && eventData.notifiedUserIds.includes(currentUser._id)) {
-                 toast.info(
-                     <div style={{ fontFamily: "'Inter', sans-serif" }}> {/* Basic styling for toast content */}
-                         <strong style={{display: 'block', marginBottom: '4px', fontSize: '1em'}}>Results Published!</strong>
-                         <p style={{fontSize: '0.9em', marginBottom: '8px', color: 'rgba(255,255,255,0.85)'}}>
-                             Results for the poll "{eventData.pollQuestion}" are now available.
-                         </p>
-                         <Link
-                             to={`/poll/${eventData.pollShortId || eventData.pollId}/results`}
-                             style={{color: '#d1d5db', textDecoration: 'underline', fontSize: '0.85em', fontWeight: '500'}} // Lighter link for dark toast
-                             onClick={() => toast.dismiss()} // Dismiss toast on click
-                         >
-                             View Results →
-                         </Link>
-                     </div>,
-                     {
-                         position: "top-right",
-                         autoClose: 10000, // 10 seconds
-                         hideProgressBar: false,
-                         closeOnClick: false, // User must click link or X to close, or wait for autoClose
-                         pauseOnHover: true,
-                         draggable: true,
-                         // theme: "colored", // This comes from ToastContainer
-                     }
-                 );
-             }
-         });
+    fetchUserNotifications();
+  }, [currentUser, fetchUserNotifications]);
+
+  // Define socket handlers using useCallback so their references are stable
+  const handlePollInvitation = useCallback((data) => {
+      if (currentUser && data.invitedUserId === currentUser._id) {
+          const newNotification = {
+              _id: data.notificationId || `socket-invite-${Date.now()}`,
+              message: `${data.creatorName} invited you to: "${data.pollQuestion}"`,
+              link: `/poll/${data.pollShortId || data.pollId}`,
+              relatedPollId: data.pollId,
+              createdAt: new Date().toISOString(),
+              read: false,
+              userId: currentUser._id
+          };
+          
+          setNotifications(prev => {
+              if (prev.find(n => n._id === newNotification._id)) return prev; // Avoid duplicates
+              return [newNotification, ...prev.slice(0, 19)]; // Keep max 20
+          });
+          setUnreadNotificationCount(prev => prev + 1);
+
+          toast.info(
+               <div style={{ fontFamily: "'Inter', sans-serif" }}>
+                   <strong style={{display: 'block', marginBottom: '4px', fontSize: '1em'}}>Poll Invitation!</strong>
+                   <p style={{fontSize: '0.9em', marginBottom: '8px', color: 'rgba(255,255,255,0.85)'}}>
+                      {newNotification.message}
+                   </p>
+                   <Link
+                       to={newNotification.link}
+                       style={{color: '#d1d5db', textDecoration: 'underline', fontSize: '0.85em', fontWeight: '500'}}
+                       onClick={() => toast.dismiss()}
+                   >
+                       View Poll →
+                   </Link>
+               </div>,
+               { position: "top-right", autoClose: 10000, hideProgressBar: false, closeOnClick: false, pauseOnHover: true, draggable: true }
+          );
+      }
+  }, [currentUser]); // Depends on currentUser to access its properties
+
+  const handleResultsPublished = useCallback((eventData) => {
+       if (currentUser && eventData.notifiedUserIds && eventData.notifiedUserIds.includes(currentUser._id)) {
+          const newNotification = {
+              _id: eventData.notificationId || `socket-results-${Date.now()}`,
+              message: `Results for poll "${eventData.pollQuestion}" are published!`,
+              link: `/poll/${eventData.pollShortId || eventData.pollId}/results`,
+              relatedPollId: eventData.pollId,
+              createdAt: new Date().toISOString(),
+              read: false,
+              userId: currentUser._id
+          };
+
+          setNotifications(prev => {
+              if (prev.find(n => n._id === newNotification._id)) return prev; // Avoid duplicates
+              return [newNotification, ...prev.slice(0, 19)];
+          });
+          setUnreadNotificationCount(prev => prev + 1);
+
+          toast.info(
+               <div style={{ fontFamily: "'Inter', sans-serif" }}>
+                   <strong style={{display: 'block', marginBottom: '4px', fontSize: '1em'}}>Results Published!</strong>
+                   <p style={{fontSize: '0.9em', marginBottom: '8px', color: 'rgba(255,255,255,0.85)'}}>
+                       Results for the poll "{eventData.pollQuestion}" are now available.
+                   </p>
+                   <Link
+                       to={`/poll/${eventData.pollShortId || eventData.pollId}/results`}
+                       style={{color: '#d1d5db', textDecoration: 'underline', fontSize: '0.85em', fontWeight: '500'}}
+                       onClick={() => toast.dismiss()}
+                   >
+                       View Results →
+                   </Link>
+               </div>,
+               { position: "top-right", autoClose: 10000, hideProgressBar: false, closeOnClick: false, pauseOnHover: true, draggable: true }
+           );
+       }
+  }, [currentUser]); // Depends on currentUser
+
+  // Effect for global socket listeners for notifications
+  useEffect(() => {
+     if (currentUser?._id) { 
+        socket.on('poll_invitation_sent', handlePollInvitation);
+        socket.on('results_published_for_poll', handleResultsPublished);
      }
-
-     // Optional: General new public poll alert (if you still want this globally from HomePage or here)
-     socket.on('new_public_poll', (newPollData) => {
-          toast.success( /* ... */ );
-     });
-
-     return () => { // Cleanup listeners on component unmount or when currentUser changes
-         socket.off('results_published_for_poll');
-         // socket.off('new_public_poll');
+     return () => { // Cleanup listeners
+         socket.off('poll_invitation_sent', handlePollInvitation);
+         socket.off('results_published_for_poll', handleResultsPublished);
      };
-  }, [currentUser]); // Re-subscribe if currentUser changes (e.g., login/logout)
+  }, [currentUser, handlePollInvitation, handleResultsPublished]); // Add memoized handlers to dependency array
 
 
   const login = (userData, token) => {
-    console.log('AUTHCONTEXT - login function called. UserData:', userData, 'Token:', token);
     if (token && typeof token === 'string') {
         localStorage.setItem('pollAppToken', token);
-        console.log('AUTHCONTEXT - Token stored in localStorage:', localStorage.getItem('pollAppToken'));
         setCurrentUser(userData);
     } else {
         console.error('AUTHCONTEXT - Invalid or no token received by login function. Not storing.');
@@ -146,13 +205,67 @@ function App() {
 
   const logout = () => {
     localStorage.removeItem('pollAppToken');
-    setCurrentUser(null);
+    setCurrentUser(null); 
     navigate('/login');
   };
   
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+        const notificationToUpdate = notifications.find(n => n._id === notificationId);
+        if (notificationToUpdate && notificationToUpdate.read) return;
+
+        setNotifications(prevNotifications => 
+            prevNotifications.map(n => 
+                n._id === notificationId ? { ...n, read: true } : n
+            )
+        );
+        if (notificationToUpdate && !notificationToUpdate.read) { // Ensure it was actually unread
+             setUnreadNotificationCount(prevCount => Math.max(0, prevCount - 1));
+        }
+
+        await apiMarkNotificationRead(notificationId);
+    } catch (error) {
+        console.error("Failed to mark notification as read:", error);
+        toast.error("Could not mark notification as read. Please try again.");
+        fetchUserNotifications(); 
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    try {
+        const hadUnread = unreadNotificationCount > 0;
+        setNotifications(prevNotifications => 
+            prevNotifications.map(n => ({ ...n, read: true }))
+        );
+        setUnreadNotificationCount(0);
+        
+        // await apiClient.put('/api/user/notifications/mark-all-read'); // Call actual backend endpoint when available
+        // fetchUserNotifications(); // Then refetch or trust UI
+
+        if (hadUnread) {
+            toast.success("All notifications marked as read (UI).");
+        }
+        console.warn("markAllNotificationsAsRead updated UI. Backend endpoint needed for persistence.");
+    } catch (error) {
+        console.error("Failed to mark all notifications as read:", error);
+        toast.error("Could not mark all notifications as read.");
+        fetchUserNotifications();
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ currentUser, login, logout, setCurrentUser, isLoadingAuth }}>
+    <AuthContext.Provider value={{ 
+        currentUser, 
+        login, 
+        logout, 
+        setCurrentUser, 
+        isLoadingAuth,
+        notifications,
+        unreadNotificationCount,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+        fetchUserNotifications
+    }}>
       <div id="app-container" className="app-layout-flex-column">
         <ToastContainer 
             position="top-right"
@@ -164,12 +277,12 @@ function App() {
             pauseOnFocusLoss
             draggable
             pauseOnHover
-            theme="colored" // Or "light", "dark" based on your app's theme variable
+            theme="colored"
         />
         <Navbar />
         <main className="app-main-content-area">
           {isLoadingAuth ? (
-             <div className="loading-indicator-container">
+             <div className="loading-indicator-container" style={{textAlign: 'center', padding: '2rem'}}>
                 <p>Loading application...</p>
              </div>
           ) : (

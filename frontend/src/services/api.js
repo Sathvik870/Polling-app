@@ -49,7 +49,23 @@ apiClient.interceptors.response.use(
     }
 );
 
-
+apiClient.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('pollAppToken');
+        console.log(`[Request Interceptor] Requesting URL: ${config.url}`);
+        if (token) {
+            console.log(`[Request Interceptor] Token FOUND for ${config.url}:`, token.substring(0, 20) + "..."); // Log a snippet
+            config.headers['Authorization'] = `Bearer ${token}`;
+        } else {
+            console.warn(`[Request Interceptor] No token found in localStorage for ${config.url}`);
+        }
+        console.log(`[Request Interceptor] Headers for ${config.url}:`, JSON.stringify(config.headers)); // Log all headers
+        return config;
+    },
+    (error) => {
+        console.log('[Request Interceptor] Error:', error); // Log request errors
+    }
+)
 // Poll Services
 export const createPoll = (pollData) => apiClient.post('/api/polls', pollData);
 export const getPolls = () => apiClient.get('/api/polls');
@@ -65,5 +81,7 @@ export const getMe = () => apiClient.get('/auth/me');
 // Add other user-specific API calls here as needed, e.g., for dashboard
 export const getUserPolls = () => apiClient.get('/api/user/polls');
 export const checkUserVoteStatus = (pollId) => apiClient.get(`/api/polls/${pollId}/vote-status`);
-
+export const getUserNotifications = () => apiClient.get('/api/user/notifications'); // Assuming
+export const markNotificationRead = (notificationId) => apiClient.put(`/api/user/notifications/${notificationId}/read`);
+export const getInvitedPolls = () => apiClient.get('/api/user/invited-polls');  
 export default apiClient;

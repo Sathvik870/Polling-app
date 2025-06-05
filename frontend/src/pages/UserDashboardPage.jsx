@@ -1,11 +1,12 @@
 // frontend/src/pages/UserDashboardPage.jsx
 import React, { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../App';
-import apiClient from '../services/api';
+import apiClient, { getInvitedPolls }  from '../services/api';
 import { Link } from 'react-router-dom';
 import { format, parseISO, formatDistanceToNowStrict } from 'date-fns';
 import styles from './UserDashboardPage.module.css'; // Your CSS Module
-
+import { toast, ToastContainer } from 'react-toastify'; // If not already globally in App.jsx for this
+import 'react-toastify/dist/ReactToastify.css';
 // Socket.IO Client
 import io from 'socket.io-client';
 const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5001');
@@ -31,7 +32,7 @@ function UserDashboardPage() {
     const [notifications, setNotifications] = useState([]); // For new public poll notifications
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-
+    const [invitedPolls, setInvitedPolls] = useState([]);
 
     useEffect(() => {
         if (currentUser) {
@@ -43,12 +44,14 @@ function UserDashboardPage() {
                     const pollsPromise = apiClient.get('/api/user/polls');
                     const votesPromise = apiClient.get('/api/user/votes');
                     const notificationsPromise = apiClient.get('/api/user/notifications'); // Fetches user-specific notifications
+                    const invitedPollsPromise = getInvitedPolls();
                     // No longer fetching /api/user/notifications directly here
 
                     const results = await Promise.allSettled([
                         pollsPromise,
                         votesPromise,
-                        notificationsPromise
+                        notificationsPromise,
+                        invitedPollsPromise
                     ]);
 
                     if (results[0].status === 'fulfilled') {
@@ -71,7 +74,12 @@ function UserDashboardPage() {
                         console.error("Failed to fetch notifications:", results[2].reason);
                         overallError += "Could not load your notifications. ";
                     }
-
+                    if (results[3].status === 'fulfilled') {
+                        setInvitedPolls(results[3].value.data);
+                    } else {
+                        console.error("Failed to fetch invited polls:", results[3].reason);
+                        overallError += "Could not load your invited polls. ";
+                    }
                     
                     if (overallError) setError(overallError.trim());
 
@@ -102,6 +110,25 @@ function UserDashboardPage() {
         return () => {
             socket.off('new_public_poll');
         };*/
+        // Socket listener for new poll invitations (if you want real-time toast/update)
+        const handlePollInvitation = (data) => {
+            if (currentUser && data.invitedUserId === currentUser._id) {
+                toast.info(
+                    <div>
+                        You've been invited to vote in: "{data.pollQuestion}" by {data.creatorName}
+                        <Link to={`/poll/${data.pollShortId || data.pollId}`} className={styles.toastLink}> Vote Now</Link>
+                    </div>
+                );
+                // Optionally, refetch invited polls or add to state if data structure matches
+                setInvitedPolls(prev => [data, ...prev]); // Simplistic add, ensure structure compatibility
+            }
+        };
+        socket.on('poll_invitation_sent', handlePollInvitation);
+
+        return () => {
+            socket.off('poll_invitation_sent', handlePollInvitation);
+        };
+
 
     }, [currentUser]); // Rerun if currentUser changes
 
@@ -115,6 +142,12 @@ function UserDashboardPage() {
                 setError(err.response?.data?.message || "Failed to delete poll.");
             }
         }
+    };
+    const markNotificationAsRead = async (notificationId) => { /* ... (as before, if used) ... */
+        try {
+            await apiClient.put(`/api/user/notifications/${notificationId}/read`);
+            setNotifications(prev => prev.map(n => n._id === notificationId ? {...n, read: true} : n));
+        } catch (err) { console.error("Failed to mark notification read", err); }
     };
 
 
@@ -181,7 +214,44 @@ function UserDashboardPage() {
                             </div>
                         )}
                     </section>
-
+                    {/* --- NEW: Invited Polls Section --- */}
+                    <section className={styles.dashboardSection}>
+                        <h2 className={styles.sectionTitle}>Polls You're Invited To ({invitedPolls.length})</h2>
+                        {invitedPolls.length > 0 ? (
+                            <div className={styles.pollsGrid}>
+                                {invitedPolls.map(poll => (
+                                    <div key={poll._id} className={styles.pollCard}>
+                                        <Link to={`/poll/${poll.shortId || poll._id}`} className={styles.pollCardLink}>
+                                            <h3 className={styles.pollCardTitle} title={poll.question}>{poll.question}</h3>
+                                        </Link>
+                                        <p className={styles.pollCardMeta}>
+                                            Invited by: {poll.creator?.displayName || 'Creator'}
+                                        </p>
+                                        <p className={styles.pollCardDetails}>
+                                            Created: {format(parseISO(poll.createdAt), 'MMM d, yyyy')}
+                                            {poll.expiresAt && (
+                                                <span className={`${styles.pollCardExpiryStatus} ${new Date(parseISO(poll.expiresAt)) < new Date() ? styles.pollCardExpiryExpired : styles.pollCardExpiryActive}`}>
+                                                ( {new Date(parseISO(poll.expiresAt)) < new Date() ? 'Expired' : `Expires ${formatDistanceToNowStrict(parseISO(poll.expiresAt), { addSuffix: true })}`} )
+                                                </span>
+                                            )}
+                                        </p>
+                                        <div className={styles.pollCardActions}>
+                                            <Link to={`/poll/${poll.shortId || poll._id}`} className={`${styles.actionButton} ${styles.actionButtonView}`}>
+                                                <EyeSvg /> View & Vote
+                                            </Link>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className={styles.noDataMessageContainer}>
+                                <RssFeedSvg /> {/* Or another relevant icon */}
+                                <h3 className={styles.noDataTitle}>No poll invitations right now.</h3>
+                                <p className={styles.noDataSubtitle}>Invitations to private polls will appear here.</p>
+                            </div>
+                        )}
+                    </section>
+                    {/* --- END: Invited Polls Section --- */}
                     {/* Voting History Section */}
                     <section className={styles.dashboardSection}>
                         <h2 className={styles.sectionTitle}>My Voting History ({votingHistory.length})</h2>

@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const qrcode = require('qrcode');
 const asyncHandler = require('express-async-handler'); // Using asyncHandler
 const Notification = require('../models/Notification');
+const sendEmail = require('../utils/sendEmail'); 
 exports.createPoll = asyncHandler(async (req, res) => {
     const { question, options, isPublic, votingType, voteRestriction, expiresAt, showResults, allowMultipleChoices, allowedVoters,allowDeadlineLater } = req.body;
     let pollStatus = 'active'; // Default to active
@@ -24,7 +25,18 @@ exports.createPoll = asyncHandler(async (req, res) => {
         res.status(401); // Unauthorized
         throw new Error('User not authenticated or user ID missing.');
     }
-
+    // --- DEFINE creatorId HERE, from req.user ---
+    const creatorId = req.user.id; 
+    // --- AND get creatorDisplayName for notifications that need it immediately ---
+    let creatorDisplayNameForNotifications = req.user.displayName;
+    if (!creatorDisplayNameForNotifications) { // Fallback if not on req.user directly
+        const creatorDetails = await User.findById(creatorId).select('displayName');
+        if (creatorDetails) {
+            creatorDisplayNameForNotifications = creatorDetails.displayName;
+        } else {
+            creatorDisplayNameForNotifications = 'A Poll Creator'; // Generic fallback
+        }
+    }
     const pollOptions = options.map(opt => ({
         text: typeof opt === 'string' ? opt.trim() : (opt && typeof opt.text === 'string' ? opt.text.trim() : ''),
         votes: 0
@@ -38,16 +50,17 @@ exports.createPoll = asyncHandler(async (req, res) => {
     const newPoll = new Poll({
         question,
         options: pollOptions,
-        creator: req.user.id,
+        creator: creatorId,
         isPublic,
-        votingType: votingType || (isPublic ? 'anonymous' : 'authenticated'), // Sensible defaults
-        voteRestriction: voteRestriction || (isPublic && votingType === 'anonymous' ? 'none' : 'email'), // Sensible defaults
+        votingType: !isPublic ? 'authenticated' : (votingType || 'anonymous'), // Sensible defaults
+        voteRestriction: !isPublic ? 'email' : (voteRestriction || 'none'), // Sensible defaults
         showResults: showResults || 'always', // Default
         allowMultipleChoices: allowMultipleChoices || false,
-        allowedVoters: isPublic ? [] : (allowedVoters || []),
+        allowedVoters: isPublic ? [] : (allowedVoters || []).map(email => email.toLowerCase().trim()).filter(Boolean),
         status: pollStatus, // status is explicitly set here
         expiresAt: finalExpiresAt,
         allowDeadlineLater: !isPublic && allowDeadlineLater,
+ 
     });
 
     // Generate QR Code
@@ -77,28 +90,98 @@ exports.createPoll = asyncHandler(async (req, res) => {
     }
 
 
-    if (savedPoll.isPublic) {
-        const publicPollNotification = {
-            _id: savedPoll._id.toString(), // Send as string
-            shortId: savedPoll.shortId,
-            question: savedPoll.question,
-            creatorName: creatorDisplayName || 'A user', // Use the fetched or existing displayName
-            createdAt: savedPoll.createdAt.toISOString(),
-            options: savedPoll.options.map(opt => ({ text: opt.text, _id: opt._id.toString() })), // Send lean options for PollCard
-            // Add any other fields your frontend PollCard might expect for a new poll
-        };
-        // req.io is available if you set it up in server.js middleware
-        if (req.io) { // Check if io is attached to req
-            req.io.emit('new_public_poll', publicPollNotification);
-            console.log('Emitted new_public_poll event for:', savedPoll.question);
-        } else {
-            console.warn('Socket.io (req.io) not available on request object. Cannot emit new_public_poll.');
+    if (!savedPoll.isPublic && savedPoll.allowedVoters && savedPoll.allowedVoters.length > 0) {
+        const creator = await User.findById(creatorId).select('displayName');
+        const creatorName = creator ? creator.displayName : 'The poll creator';
+        const creatorNameToDisplay = creatorDisplayNameForNotifications;
+
+        for (const invitedEmail of savedPoll.allowedVoters) { // Iterate through the emails provided
+            const invitedUser = await User.findOne({ email: invitedEmail.toLowerCase() }); // Find user by this email
+
+            if (invitedUser && invitedUser._id.toString() !== creatorId.toString()) {
+                // 1. Create In-App Notification
+                await Notification.create({
+                    userId: invitedUser._id,
+                    message: `${creatorName} has invited you to vote in the poll: "${savedPoll.question}"`,
+                    link: `/poll/${savedPoll.shortId || savedPoll._id}`,
+                    relatedPollId: savedPoll._id
+                });
+
+                // 2. Emit Socket Event
+                if (req.io) {
+                     req.io.emit('poll_invitation_sent', { 
+                        invitedUserId: invitedUser._id.toString(),
+                        pollId: savedPoll._id.toString(),
+                        pollShortId: savedPoll.shortId,
+                        pollQuestion: savedPoll.question,
+                        creatorName: creatorName
+                     });
+                }
+
+                // --- START: Send Email Notification ---
+                try {
+                    const emailMessage = `
+                        <h1>You're Invited to a Poll!</h1>
+                        <p>Hi ${invitedUser.displayName || 'User'},</p>
+                        <p>${creatorNameToDisplay} has invited you to participate in the private poll titled: <strong>"${savedPoll.question}"</strong>.</p>
+                        <p>Click the link below to view the poll and cast your vote:</p>
+                        <a href="${pollUrl}" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">
+                            Vote in Poll: ${savedPoll.question}
+                        </a>
+                        <p>If you did not expect this invitation, you can ignore this email.</p>
+                        <br>
+                        <p>Thanks,<br>The PollingApp Team</p>
+                    `;
+                    
+                    await sendEmail({
+                        to: invitedUser.email, // Send to the invited user's email
+                        subject: `You've been invited to a poll by ${creatorNameToDisplay}: "${savedPoll.question}"`,
+                        text: `Hi ${invitedUser.displayName || 'User'},\n\n${creatorNameToDisplay} has invited you to participate in the private poll: "${savedPoll.question}".\n\nView and vote here: ${pollUrl}\n\nThanks,\nThe PollingApp Team`,
+                        html: emailMessage
+                    });
+                    console.log(`Email invitation sent to ${invitedUser.email} for poll "${savedPoll.question}"`);
+                } catch (emailError) {
+                    console.error(`Failed to send email invitation to ${invitedUser.email}:`, emailError);
+                    // Decide if this failure is critical. For now, we log and continue.
+                    // You might want to add specific error handling or retry logic here.
+                }
+                // --- END: Send Email Notification ---
+
+            } else if (!invitedUser) {
+                // Optional: Handle cases where an email in allowedVoters doesn't correspond to a registered user.
+                // You might:
+                // 1. Ignore it.
+                // 2. Send a generic "You've been invited to a poll, sign up to participate" email.
+                // 3. Store these emails somewhere for future "pending invitations" if the user registers later.
+                // For now, we'll just log it.
+                console.log(`No registered user found for email: ${invitedEmail}. No invitation email sent.`);
+            }
         }
     }
+    // --- END: Notify allowed voters ---
 
-    // Send response ONCE after all operations
+
+    if (savedPoll.isPublic && req.io) { // Existing public poll notification
+         let creatorDisplayName = req.user.displayName;
+         if (!creatorDisplayName && req.user.id) { 
+            const creatorDetails = await User.findById(req.user.id).select('displayName');
+            if (creatorDetails) creatorDisplayName = creatorDetails.displayName;
+         }
+         const publicPollNotification = {
+            _id: savedPoll._id.toString(),
+            creatorName: creatorDisplayNameForNotifications || 'A user',
+            shortId: savedPoll.shortId,
+            question: savedPoll.question,
+            creatorName: creatorDisplayName || 'A user',
+            createdAt: savedPoll.createdAt.toISOString(),
+            options: savedPoll.options.map(opt => ({ text: opt.text, _id: opt._id.toString() })),
+         };
+         req.io.emit('new_public_poll', publicPollNotification);
+    }
+
     res.status(201).json(savedPoll);
 });
+
 
 
 // ... (rest of your existing pollController code: getPolls, getPollById, castVote, updatePoll, deletePoll) ...
@@ -119,6 +202,7 @@ exports.getPolls = asyncHandler(async (req, res) => {
     res.json(polls);
 });
 
+// backend/controllers/pollController.js
 exports.getPollById = asyncHandler(async (req, res) => {
     const identifier = req.params.id;
     let poll;
@@ -126,7 +210,7 @@ exports.getPollById = asyncHandler(async (req, res) => {
     if (mongoose.Types.ObjectId.isValid(identifier)) {
         poll = await Poll.findById(identifier).populate('creator', 'displayName email');
     }
-    if (!poll) { // If not found by ID or if identifier was not an ObjectId
+    if (!poll) {
         poll = await Poll.findOne({ shortId: identifier }).populate('creator', 'displayName email');
     }
 
@@ -134,9 +218,27 @@ exports.getPollById = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Poll not found');
     }
+
+    // --- START: Access Control for Private Polls ---
+    if (!poll.isPublic) {
+        if (!req.user) { // User must be logged in to view any private poll
+            res.status(401);
+            throw new Error('Authentication required to view this private poll.');
+        }
+        const isCreator = poll.creator && poll.creator._id.toString() === req.user.id.toString();
+        const isAdmin = req.user.role === 'admin';
+        // req.user.email should be populated by the 'protect' middleware or fetched if not directly available
+        const isAllowedVoter = poll.allowedVoters.includes(req.user.email ? req.user.email.toLowerCase() : '');
+
+        if (!isCreator && !isAdmin && !isAllowedVoter) {
+            res.status(403); // Forbidden
+            throw new Error("You don't have access to this poll.");
+        }
+    }
+    // --- END: Access Control for Private Polls ---
+
     res.json(poll);
 });
-
 exports.castVote = asyncHandler(async (req, res) => {
     const { optionIndex } = req.body;
     const pollId = req.params.id; // This is an identifier (_id or shortId)
@@ -153,7 +255,27 @@ exports.castVote = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Poll not found.');
     }
+    if (!pollToVoteOn.isPublic) {
+        if (!req.user) { // User must be logged in
+            res.status(401);
+            throw new Error('Authentication required to vote in this private poll.');
+        }
+        const isCreator = pollToVoteOn.creator.toString() === req.user.id; // Creator might be allowed to vote
+        const isAdmin = req.user.role === 'admin'; // Admin might be allowed
+        const isAllowedVoter = pollToVoteOn.allowedVoters.includes(req.user.email ? req.user.email.toLowerCase() : '');
 
+        // If you DON'T want creator/admin to vote unless explicitly in allowedVoters, remove them from condition:
+        if (!isAllowedVoter && !isCreator && !isAdmin) { 
+            res.status(403);
+            throw new Error('You are not authorized to vote in this private poll.');
+        }
+        // Ensure the voting type for private polls is 'authenticated'
+        if (pollToVoteOn.votingType !== 'authenticated') {
+            // This should ideally be set at poll creation for private polls with allowedVoters
+            res.status(400);
+            throw new Error('Private polls with specific voters require authenticated voting type.');
+        }
+    }
     if (pollToVoteOn.expiresAt && new Date(pollToVoteOn.expiresAt) < new Date()) {
         res.status(400);
         throw new Error('This poll has expired.');

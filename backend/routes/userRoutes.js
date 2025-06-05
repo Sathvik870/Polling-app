@@ -15,5 +15,5 @@ router.get('/notifications', protect, userController.getUserNotifications);
 
 // NEW: Mark a notification as read (example)
 router.put('/notifications/:notificationId/read', protect, userController.markNotificationRead);
-
+router.get('/invited-polls', protect, userController.getUserInvitedPolls);
 module.exports = router;

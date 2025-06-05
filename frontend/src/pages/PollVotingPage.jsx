@@ -114,6 +114,7 @@ function PollVotingPage() {
                         }
                     } else {
                         // Poll requires auth, but user is not logged in.
+                        console.warn("Poll is authenticated type, but no current user. Redirecting to login.");
                         navigate('/login', { state: { from: location }, replace: true });
                         setIsLoading(false); 
                         setIsLoadingVoteStatus(false);
@@ -128,6 +129,7 @@ function PollVotingPage() {
                 setShowSimpleResultsOnPage(determineSimpleResultsVisibility(fetchedPoll, localSessionVote, hasUserVotedServer));
 
             } catch (err) {
+                
                 setError(err.response?.data?.message || 'Poll not found or error loading poll.');
                 setPoll(null);
             } finally {
@@ -237,7 +239,17 @@ function PollVotingPage() {
 
     // --- Loading and Error States ---
     if (isLoading) return <div className={styles.loadingText}>Loading poll...</div>;
-    
+    if (error && !poll) {
+        return (
+            <div className={`${styles.pageContainer}`}>
+                <div className={`${styles.card} ${styles.statusErrorCard}`}> {/* Added specific card for error */}
+                    <ShieldExclamationSvg />
+                    <p className={styles.accessDeniedMessage}>{error}</p>
+                    <Link to="/" className={styles.backButtonLink}>Go Home</Link>
+                </div>
+            </div>
+        );
+    }
     if (!poll) return (
         <div className={`${styles.loadingText} ${styles.statusError}`}>
             {error || "Poll information is unavailable."}

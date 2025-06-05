@@ -27,11 +27,15 @@ function CreatePollPage() {
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
     const { currentUser } = useContext(AuthContext);
+     const [allowedVotersInput, setAllowedVotersInput] = useState(''); // For the current email being typed
+    const [allowedVotersList, setAllowedVotersList] = useState([]); // Array of email strings
+    // --- END NEW STATE ---
 
 
     useEffect(() => {
         if (isPublic) {
             setAllowDeadlineLater(false);
+            setAllowedVotersList([]);
         }
     }, [isPublic]);
 
@@ -49,41 +53,88 @@ function CreatePollPage() {
     const removeOption = (index) => {
         if (options.length > 2) setOptions(options.filter((_, i) => i !== index));
     };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault(); setError(''); setIsLoading(true);
-        if (!question.trim()) { setError('Question is required.'); setIsLoading(false); return; }
-        const validOptions = options.filter(opt => opt.text.trim() !== '');
-        if (validOptions.length < 2) { setError('At least two valid options are required.'); setIsLoading(false); return; }
-
-        let pollStatus = 'active';
-        let finalExpiresAt = expiresAt;
-
-        if (!isPublic && allowDeadlineLater) {
-            pollStatus = 'scheduled'; 
-            finalExpiresAt = null; 
-        }
-        
-        const pollData = {
-            question,
-            options: validOptions.map(opt => ({ text: opt.text })),
-            isPublic,
-            expiresAt: finalExpiresAt ? finalExpiresAt.toISOString() : null,
-            status: pollStatus,
-            allowDeadlineLater: !isPublic && allowDeadlineLater,
-            votingType: 'authenticated',
-            resultsVisibility: isPublic ? 'always_simple' : 'creator_only_detailed_until_closed',
-        };
-
-        try {
-            const response = await createPoll(pollData);
-            navigate(`/poll/${response.data.shortId || response.data._id}`);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to create poll.');
-        } finally {
-            setIsLoading(false);
+    const handleAddAllowedVoter = () => {
+        const email = allowedVotersInput.trim().toLowerCase();
+        if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { // Basic email validation
+            if (!allowedVotersList.includes(email)) {
+                setAllowedVotersList([...allowedVotersList, email]);
+            }
+            setAllowedVotersInput(''); // Clear input
+        } else if (email) {
+            // Optionally show a small error near the input
+            alert("Please enter a valid email address.");
         }
     };
+    const handleRemoveAllowedVoter = (emailToRemove) => {
+        setAllowedVotersList(allowedVotersList.filter(email => email !== emailToRemove));
+    };
+    const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    if (!question.trim()) {
+        setError('Question is required.');
+        setIsLoading(false);
+        return;
+    }
+    const validOptions = options.filter(opt => opt.text.trim() !== '');
+    if (validOptions.length < 2) {
+        setError('At least two valid options are required.');
+        setIsLoading(false);
+        return;
+    }
+    if (!isPublic && allowedVotersList.some(email => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+        setError('One or more emails in the allowed voters list are invalid.');
+        setIsLoading(false);
+        return;
+    }
+
+    let pollStatus = 'active';
+    let finalExpiresAt = expiresAt;
+
+    if (!isPublic && allowDeadlineLater) {
+        pollStatus = 'scheduled';
+        finalExpiresAt = null;
+    }
+
+    const pollData = {
+        question,
+        options: validOptions.map(opt => ({ text: opt.text })),
+        isPublic,
+        expiresAt: finalExpiresAt ? finalExpiresAt.toISOString() : null,
+        status: pollStatus,
+        allowDeadlineLater: !isPublic && allowDeadlineLater,
+        allowedVoters: !isPublic ? allowedVotersList : [],
+        votingType: !isPublic ? 'authenticated' : 'anonymous', // Consider if 'anonymous' is right for public
+        // resultsVisibility: isPublic ? 'always_simple' : 'creator_only_detailed_until_closed', // This was in your code, ensure it's what you want
+        showResults: 'always', // Defaulted to this based on backend, adjust if needed
+    };
+
+    try {
+        const response = await createPoll(pollData); // Called only ONCE
+        
+        console.log('[CreatePollPage] Poll created successfully. Response:', response.data);
+        const tokenBeforeNav = localStorage.getItem('pollAppToken');
+        console.log('[CreatePollPage] Token in localStorage BEFORE navigate:', tokenBeforeNav);
+        
+        if (!tokenBeforeNav) {
+            console.error('[CreatePollPage] CRITICAL: Token is MISSING before navigation! This should not happen after a successful poll creation.');
+            setError('Authentication error after creating poll. Please try logging in again.');
+            // Do NOT navigate if token is missing. Let user see error.
+        } else {
+            navigate(`/poll/${response.data.shortId || response.data._id}`);
+        }
+
+    } catch (err) {
+        console.error("[CreatePollPage] Error during createPoll or navigation:", err);
+        setError(err.response?.data?.message || 'Failed to create poll.');
+        // If the error was 401 during createPoll, the interceptor would have handled logout.
+        // If token was present but createPoll failed for other reasons, token should still be there.
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     if (!currentUser) {
         return (
@@ -135,7 +186,6 @@ function CreatePollPage() {
                             </button>
                         )}
                     </div>
-
                     <div className={styles.settingsSection}>
                         <h3 className={styles.settingsTitle}>Settings</h3>
                         <div className={styles.switchGroup}>
@@ -146,6 +196,41 @@ function CreatePollPage() {
                                 <span className={`${isPublic ? styles.switchHandleActive : styles.switchHandleInactive} ${styles.switchHandleBase}`} />
                             </Switch>
                         </div>
+                        {!isPublic && (
+                            <div className={styles.formGroup} style={{marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem'}}>
+                                <label htmlFor="allowedVoterEmail" className={styles.label}>
+                                    Allow Only Specific People to Vote (Enter emails)
+                                </label>
+                                <div className={styles.allowedVotersInputContainer}>
+                                    <input
+                                        type="email"
+                                        id="allowedVoterEmail"
+                                        value={allowedVotersInput}
+                                        onChange={(e) => setAllowedVotersInput(e.target.value)}
+                                        className={styles.inputField}
+                                        placeholder="user@example.com"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAllowedVoter(); }}}
+                                    />
+                                    <button type="button" onClick={handleAddAllowedVoter} className={styles.addEmailButton}>
+                                        Add User
+                                    </button>
+                                </div>
+                                {allowedVotersList.length > 0 && (
+                                    <ul className={styles.allowedVotersChipList}>
+                                        {allowedVotersList.map(email => (
+                                            <li key={email} className={styles.allowedVoterChip}>
+                                                {email}
+                                                <button type="button" onClick={() => handleRemoveAllowedVoter(email)} className={styles.removeChipButton}>
+                                                    ×
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                <p className={styles.fieldHelperText}>Users you add here will be notified and can vote.</p>
+                            </div>
+                        )}
+                        {/* --- END: UI for Allowed Voters --- */}
 
                         <div className={styles.formGroup}>
                             <label htmlFor="expiresAt" className={styles.label}>

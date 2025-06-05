@@ -141,3 +141,22 @@ exports.markNotificationRead = asyncHandler(async (req, res) => {
     res.json({ _id: notificationId, message: "Mock notification marked as read", read: true, userId: req.user.id, createdAt: new Date() });
 });
 // Add other controller functions here (getUserVotes, etc.)
+
+exports.getUserInvitedPolls = asyncHandler(async (req, res) => {
+    if (!req.user || !req.user.email) {
+        res.status(401);
+        throw new Error('Not authorized, user email not found in request');
+    }
+
+    const userEmail = req.user.email.toLowerCase();
+
+    const invitedPolls = await Poll.find({
+        isPublic: false, // Only private polls
+        allowedVoters: userEmail, // User's email is in the allowedVoters list
+        creator: { $ne: req.user._id } // User is NOT the creator of the poll
+    })
+    .populate('creator', 'displayName email')
+    .sort({ createdAt: -1 });
+
+    res.json(invitedPolls);
+});
