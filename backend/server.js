@@ -18,6 +18,7 @@ const Notification = require('./models/Notification');
 // const User = require('./models/User'); // Only if User specific fields are needed directly here
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app); // Create HTTP server from Express app
 const io = new Server(server, { // Initialize Socket.IO server and attach to HTTP server
     cors: {
