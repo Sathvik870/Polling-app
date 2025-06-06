@@ -239,9 +239,17 @@ exports.getPollById = asyncHandler(async (req, res) => {
 
     res.json(poll);
 });
+// backend/controllers/pollController.js
+
+// ... (other requires: Poll, Vote, User, mongoose, asyncHandler, etc.) ...
+
 exports.castVote = asyncHandler(async (req, res) => {
     const { optionIndex } = req.body;
-    const pollId = req.params.id; // This is an identifier (_id or shortId)
+    const pollId = req.params.id;
+
+    // --- Log headers to check IP resolution ---
+    console.log(`[CastVote] Original req.ip: ${req.ip}, X-Forwarded-For: ${req.headers['x-forwarded-for']}`);
+    // ---
 
     let pollToVoteOn;
     if (mongoose.Types.ObjectId.isValid(pollId)) {
@@ -255,27 +263,29 @@ exports.castVote = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Poll not found.');
     }
+
+    // --- Access control for private polls (voting) ---
     if (!pollToVoteOn.isPublic) {
-        if (!req.user) { // User must be logged in
+        if (!req.user) {
             res.status(401);
             throw new Error('Authentication required to vote in this private poll.');
         }
-        const isCreator = pollToVoteOn.creator.toString() === req.user.id; // Creator might be allowed to vote
-        const isAdmin = req.user.role === 'admin'; // Admin might be allowed
-        const isAllowedVoter = pollToVoteOn.allowedVoters.includes(req.user.email ? req.user.email.toLowerCase() : '');
+        const isCreator = pollToVoteOn.creator.toString() === req.user.id;
+        const isAdmin = req.user.role === 'admin';
+        const userEmailForCheck = req.user.email ? req.user.email.toLowerCase() : '';
+        const isAllowedVoter = pollToVoteOn.allowedVoters.includes(userEmailForCheck);
 
-        // If you DON'T want creator/admin to vote unless explicitly in allowedVoters, remove them from condition:
         if (!isAllowedVoter && !isCreator && !isAdmin) { 
             res.status(403);
             throw new Error('You are not authorized to vote in this private poll.');
         }
-        // Ensure the voting type for private polls is 'authenticated'
         if (pollToVoteOn.votingType !== 'authenticated') {
-            // This should ideally be set at poll creation for private polls with allowedVoters
             res.status(400);
             throw new Error('Private polls with specific voters require authenticated voting type.');
         }
     }
+    // --- End access control ---
+
     if (pollToVoteOn.expiresAt && new Date(pollToVoteOn.expiresAt) < new Date()) {
         res.status(400);
         throw new Error('This poll has expired.');
@@ -285,32 +295,49 @@ exports.castVote = asyncHandler(async (req, res) => {
         throw new Error('Invalid option selected.');
     }
 
+    // --- REVISED voterIdentifier LOGIC ---
     let voterIdentifier;
-    const isAuthenticatedPoll = pollToVoteOn.votingType === 'authenticated';
-
-    if (isAuthenticatedPoll) {
-        if (!req.user) { // req.user should be set by 'protect' middleware if this route is protected
-            res.status(401);
-            throw new Error('Authentication required to vote in this poll.');
-        }
+    if (req.user && req.user.id) { // If the user is logged in (token was provided and valid)
         voterIdentifier = req.user.id;
-    } else { // anonymous
+        console.log(`[CastVote] Authenticated user voting. VoterID (user._id): ${voterIdentifier}`);
+    } else { // User is NOT logged in (truly anonymous vote)
+        console.log(`[CastVote] Anonymous user voting. Poll votingType: ${pollToVoteOn.votingType}, voteRestriction: ${pollToVoteOn.voteRestriction}`);
+        // If it's an authenticated-type poll but no user, it's an issue (should be caught by 'protect' or earlier logic)
+        if (pollToVoteOn.votingType === 'authenticated') {
+            res.status(401); // Should not be reachable if 'protect' is on the route for auth polls
+            throw new Error('This poll type requires authentication to vote, but no user session was found.');
+        }
+        
+        // For anonymous polls:
         if (pollToVoteOn.voteRestriction === 'ip') {
-            voterIdentifier = req.ip;
+            voterIdentifier = req.ip; // req.ip should now be the actual client IP due to 'trust proxy'
+            console.log(`[CastVote] Anonymous IP restriction. VoterID (actual client IP): ${voterIdentifier}`);
+        } else if (pollToVoteOn.voteRestriction === 'none') {
+            // For true 'none' restriction (multiple votes from same IP/person allowed)
+            voterIdentifier = new mongoose.Types.ObjectId().toString(); // Generate a unique ID for each vote
+            console.log(`[CastVote] Anonymous 'none' restriction. VoterID (unique per vote): ${voterIdentifier}`);
         } else {
-            voterIdentifier = req.ip; // Or another anonymous identifier
+            // Default fallback for anonymous if other restrictions are added later, or if misconfigured
+            voterIdentifier = req.ip; 
+            console.warn(`[CastVote] Anonymous poll with unhandled/default voteRestriction '${pollToVoteOn.voteRestriction}'. Defaulting to IP: ${voterIdentifier}`);
         }
     }
+    // --- END REVISED voterIdentifier LOGIC ---
 
-    // Check for existing vote only if restriction is not 'none'
-    // AND (if it's an authenticated poll OR if it's an anonymous poll with IP restriction)
-    if (pollToVoteOn.voteRestriction !== 'none' && (isAuthenticatedPoll || pollToVoteOn.voteRestriction === 'ip')) {
+    // --- REVISED Check for existing vote ---
+    // This check is important unless it's an anonymous poll with 'none' restriction 
+    // AND we are generating a unique ID for each vote (handled by voterIdentifier logic above).
+    const isTrulyNoRestrictionVote = pollToVoteOn.votingType === 'anonymous' && 
+                                     pollToVoteOn.voteRestriction === 'none';
+
+    if (!isTrulyNoRestrictionVote) { // Only check for duplicates if not a "truly no restriction" anonymous vote
         const existingVote = await Vote.findOne({ poll: pollToVoteOn._id, voterIdentifier });
         if (existingVote) {
             res.status(403); // Forbidden
-            throw new Error('You have already voted in this poll.');
+            throw new Error('You have already voted in this poll or your IP has reached its vote limit.');
         }
     }
+    // --- END REVISED Check for existing vote ---
 
     await Vote.create({
         poll: pollToVoteOn._id,
@@ -318,7 +345,6 @@ exports.castVote = asyncHandler(async (req, res) => {
         voterIdentifier: voterIdentifier
     });
 
-    // Atomically increment the vote count on the specific option
     const updatedPoll = await Poll.findOneAndUpdate(
         { _id: pollToVoteOn._id, "options._id": pollToVoteOn.options[optionIndex]._id },
         { $inc: { "options.$.votes": 1 } },
@@ -326,18 +352,17 @@ exports.castVote = asyncHandler(async (req, res) => {
     ).populate('creator', 'displayName email');
 
     if (!updatedPoll) {
-        // This should ideally not happen if the poll and option exist
         res.status(500);
         throw new Error('Failed to update vote count on the poll.');
     }
 
-    // Emit real-time update for this specific poll's results
     if (req.io) {
-        req.io.to(updatedPoll._id.toString()).emit('vote_update', updatedPoll); // Emit to specific poll room
-        req.io.to(updatedPoll.shortId).emit('vote_update', updatedPoll);      // Also emit to shortId room
+        req.io.to(updatedPoll._id.toString()).emit('vote_update', updatedPoll);
+        if (updatedPoll.shortId) { // Ensure shortId exists before emitting to its room
+            req.io.to(updatedPoll.shortId).emit('vote_update', updatedPoll);
+        }
         console.log(`Emitted vote_update for poll: ${updatedPoll.question}`);
     }
-
 
     res.json(updatedPoll);
 });
