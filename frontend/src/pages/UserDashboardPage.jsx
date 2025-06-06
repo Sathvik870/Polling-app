@@ -290,7 +290,7 @@ function UserDashboardPage() {
                 {/* Sidebar Area (Site Activity / Real-time Poll Notifications) */}
                 <aside className={styles.sidebar}>
                     <section className={styles.dashboardSection}>
-                        <h2 className={styles.sectionTitle}>My Notifications ({notifications.filter(n => !n.read).length} unread)</h2>
+                        <h2 className={styles.sectionTitle}>My Notifications ({notifications.filter(n => !n.read).length})</h2>
                         {notifications.length > 0 ? (
                             <div className={styles.notificationsContainer}>
                                 <ul className={styles.notificationsList}>

@@ -36,7 +36,28 @@ exports.protect = async (req, res, next) => {
         res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
-
+exports.tryProtect = async (req, res, next) => {
+    let token;
+    // ... (logging as before) ...
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            token = req.headers.authorization.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = await User.findById(decoded.id).select('-password');
+            if (req.user) {
+                console.log('[TryProtect Middleware] User attached to req.user:', req.user.email);
+            } else {
+                console.warn('[TryProtect Middleware] User not found for decoded ID, req.user is null.');
+            }
+        } catch (error) {
+            console.warn('[TryProtect Middleware] Token present but invalid/expired:', error.message);
+            req.user = null; // Explicitly set to null on error
+        }
+    } else {
+        req.user = null; // No token provided
+    }
+    next(); // Always call next, req.user might be null
+};
 exports.authorizeAdmin = (req, res, next) => {
     if (req.user && req.user.role === 'admin') {
         next();
