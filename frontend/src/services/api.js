@@ -11,7 +11,7 @@ const apiClient = axios.create({
 });
 
 // Interceptor to add JWT token to requests
-apiClient.interceptors.request.use(
+/*apiClient.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('pollAppToken');
         // ---- DEBUGGING LOGS ----
@@ -29,7 +29,7 @@ apiClient.interceptors.request.use(
         console.error('[Request Interceptor] Error:', error); // Log request errors
         return Promise.reject(error);
     }
-);
+);*/
 
 // Interceptor to handle 401 errors (e.g., token expired)
 apiClient.interceptors.response.use(

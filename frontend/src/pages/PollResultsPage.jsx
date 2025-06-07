@@ -8,7 +8,7 @@ import {
     Chart as ChartJS,
     CategoryScale,
     LinearScale,
-    BarElement,
+    BarElement, 
     Title,
     Tooltip,
     Legend,
@@ -20,13 +20,10 @@ import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import styles from './PollResultsPage.module.css';
-
-// Inline SVGs
 const ArrowLeftSvg = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={styles.backButtonIcon}><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>;
 const CollectionSvg = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={styles.noDataIcon}><path strokeLinecap="round" strokeLinejoin="round" d="M19.54 6.46a9 9 0 01-13.08 0M19.54 6.46L17.32 4.24m2.22 2.22l2.22-2.22m-13.08 0L4.24 4.24m2.22 2.22L4.24 2.02m15.28 4.44V6.3a9 9 0 00-18 0v.16m18 0a9 9 0 01-18 0m18 0v1.05C19.25 9.8 15.91 12 12 12S4.75 9.8 4.5 7.53M12 12v6.75m0 0A3.375 3.375 0 0015.375 21H8.625A3.375 3.375 0 0012 18.75m0 0v-6.75" /></svg>;
 const InfoSvg = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={styles.errorIcon}><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>;
 const DownloadSvg = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={styles.downloadIcon}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>;
-
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5001');
@@ -39,14 +36,14 @@ function PollResultsPage() {
     const [canViewDetailed, setCanViewDetailed] = useState(false);
     const chartContainerRef = useRef(null);
     const { currentUser } = useContext(AuthContext);
-
-    // Refs for chart instances
     const barChartRef = useRef(null);
     const pieChartRef = useRef(null);
 
     useEffect(() => {
         const fetchPollResults = async () => {
-            setIsLoading(true); setError(''); setPoll(null);
+            setIsLoading(true); 
+            setError(''); 
+            setPoll(null);
             try {
                 const response = await getPollById(pollId);
                 const fetchedPoll = response.data;
@@ -62,31 +59,25 @@ function PollResultsPage() {
 
                 const isCreator = currentUser && fetchedPoll.creator && currentUser._id === fetchedPoll.creator._id;
                 const isAdmin = currentUser && currentUser.role === 'admin';
-                const isPollExpired = fetchedPoll.expiresAt && new Date(parseISO(fetchedPoll.expiresAt)) < new Date();
-                const isPollClosed = fetchedPoll.status === 'closed';
-                const userHasVoted = !!localStorage.getItem(`voted_${fetchedPoll.shortId || fetchedPoll._id}`);
+                const isPollEffectivelyOver = fetchedPoll.status === 'closed' || (fetchedPoll.expiresAt && new Date(parseISO(fetchedPoll.expiresAt)) < new Date());
                 
                 let canView = false;
                 if (fetchedPoll.isPublic) {
-                    if (fetchedPoll.resultsVisibility === 'always_detailed' || isPollExpired || isPollClosed) {
+                    const userHasVoted = !!localStorage.getItem(`voted_${fetchedPoll.shortId || fetchedPoll._id}`);
+                    if (isPollEffectivelyOver || fetchedPoll.showResults === 'always') {
                         canView = true;
-                    } else if (fetchedPoll.resultsVisibility === 'always_simple') {
-                        canView = true;
-                    } else if (fetchedPoll.resultsVisibility === 'after_vote_simple' && userHasVoted) {
-                        canView = true;
-                    } else if (fetchedPoll.resultsVisibility && fetchedPoll.resultsVisibility.includes('detailed')) {
-                         canView = true;
-                    } else if (!fetchedPoll.resultsVisibility) {
+                    } else if (fetchedPoll.showResults === 'after_vote' && userHasVoted) {
                         canView = true;
                     }
                 } else { 
+                    const isAllowedVoter = currentUser && fetchedPoll.allowedVoters?.includes(currentUser.email.toLowerCase());
+                    
                     if (isCreator || isAdmin) {
                         canView = true;
-                    } else if (isPollClosed && userHasVoted) {
+                    } else if (isPollEffectivelyOver && isAllowedVoter) {
                         canView = true;
                     }
                 }
-                
                 setCanViewDetailed(canView);
                 if (!canView && fetchedPoll) {
                     setError("You do not have permission to view detailed results for this poll, or they are not yet available.");
@@ -124,20 +115,23 @@ function PollResultsPage() {
         };
         
         const handlePollClosedSocket = (closedPollData) => {
-            if (!closedPollData) return;
-            if ((closedPollData._id === currentPollIdForSocket) || (closedPollData.shortId === currentPollIdForSocket)) {
-                setPoll(prevPoll => {
-                    if (!prevPoll) return null;
-                    return {...prevPoll, status: 'closed', expiresAt: closedPollData.expiresAt}
-                });
-                const userHasVoted = !!localStorage.getItem(`voted_${closedPollData.shortId || closedPollData._id}`);
-                // Use a local copy of poll from state to check creator, as `poll` in effect closure might be stale
-                const currentPollState = poll; // Or pass poll via `useRef` if needed for absolute latest
-                const isCreator = currentUser && currentPollState && currentPollState.creator && currentUser._id === currentPollState.creator._id;
-                if (isCreator || (currentUser && currentUser.role === 'admin') || userHasVoted) {
-                     setCanViewDetailed(true);
-                     setError('');
+            let currentPollState = null;
+            setPoll(prevPoll => {
+                currentPollState = prevPoll; // Capture the state before updating
+                if (!prevPoll || !closedPollData) return prevPoll;
+                if ((closedPollData._id === prevPoll._id) || (closedPollData.shortId === prevPoll.shortId)) {
+                    return {...prevPoll, status: 'closed', expiresAt: closedPollData.expiresAt};
                 }
+                return prevPoll;
+            });
+            if (currentPollState && ((closedPollData._id === currentPollState._id) || (closedPollData.shortId === currentPollState.shortId))) {
+                 const isCreator = currentUser && currentPollState.creator._id === currentUser._id;
+                 const isAdmin = currentUser && currentUser.role === 'admin';
+                 const isAllowedVoter = currentUser && currentPollState.allowedVoters?.includes(currentUser.email.toLowerCase());
+                 if (isCreator || isAdmin || isAllowedVoter) {
+                      setCanViewDetailed(true);
+                      setError('');
+                 }
             }
         };
 

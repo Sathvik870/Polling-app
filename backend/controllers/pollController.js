@@ -274,7 +274,7 @@ exports.getPollById = asyncHandler(async (req, res) => {
 // ... (other requires: Poll, Vote, User, mongoose, asyncHandler, etc.) ...
 
 exports.castVote = asyncHandler(async (req, res) => {
-    const { optionIndex } = req.body;
+    const { optionIndex ,navigatorFingerprint} = req.body;
     const pollId = req.params.id;
 
     // Log initial request details
@@ -313,32 +313,36 @@ exports.castVote = asyncHandler(async (req, res) => {
 
     // --- Determine voterIdentifier ---
     let voterIdentifier;
-    let isPublicPollVote = pollToVoteOn.isPublic;
-
-    if (isPublicPollVote) {
-        // For ALL votes on PUBLIC POLLS (logged in or anonymous):
-        // Use a combination of IP and User-Agent.
-        // req.ip should be the actual client IP if 'trust proxy' is set in server.js
-        const userAgent = req.headers['user-agent'] || 'unknown-agent'; // Fallback for missing user-agent
-        const rawIdentifierString = `${req.ip}__AGENT__${userAgent}`;
+    if (pollToVoteOn.isPublic) {
+        // For PUBLIC POLLS: Combine IP, User-Agent, and Navigator Properties
+        const userAgent = req.headers['user-agent'] || 'unknown-agent';
         
-        // Hash the combined string to create a consistent, fixed-length identifier
+        // Construct string from navigatorFingerprint object
+        let navigatorString = 'nav_unknown';
+        if (navigatorFingerprint && typeof navigatorFingerprint === 'object') {
+            navigatorString = Object.keys(navigatorFingerprint)
+                .sort() // Sort keys for consistent string order
+                .map(key => `${key}:${navigatorFingerprint[key]}`)
+                .join('|');
+        } else if (typeof navigatorFingerprint === 'string') { // Fallback if it's already a string
+             navigatorString = navigatorFingerprint;
+        }
+
+
+        const rawIdentifierString = `${req.ip}__AGENT__${userAgent}__NAV__${navigatorString}`;
         voterIdentifier = crypto.createHash('sha256').update(rawIdentifierString).digest('hex');
         
-        console.log(`[CastVote] PUBLIC POLL. Using IP+UA. IP: ${req.ip}, UA: ${userAgent.substring(0,50)}...`);
-        console.log(`[CastVote] PUBLIC POLL. Raw ID string for hash: "${rawIdentifierString.substring(0,100)}..."`);
+        console.log(`[CastVote] PUBLIC POLL. IP: ${req.ip}, UA: ${userAgent.substring(0,50)}...`);
+        console.log(`[CastVote] PUBLIC POLL. Navigator String: ${navigatorString.substring(0,100)}...`);
+        console.log(`[CastVote] PUBLIC POLL. Raw ID for hash: "${rawIdentifierString.substring(0,150)}..."`);
         console.log(`[CastVote] PUBLIC POLL. Hashed voterIdentifier: ${voterIdentifier}`);
 
     } else { // PRIVATE POLL (isPublic is false)
-        // Private polls strictly require authentication.
-        // The 'protect' middleware should already enforce this for routes that use it.
-        // If using 'tryProtect', this check is essential.
         if (!req.user || !req.user.id) {
             res.status(401);
             throw new Error('Authentication is absolutely required to vote in this private poll.');
         }
 
-        // Access control for who can vote in this specific private poll
         const isCreator = pollToVoteOn.creator.toString() === req.user.id;
         const isAdmin = req.user.role === 'admin';
         const userEmailForCheck = req.user.email ? req.user.email.toLowerCase() : '';
@@ -348,15 +352,11 @@ exports.castVote = asyncHandler(async (req, res) => {
             res.status(403);
             throw new Error('You are not authorized to vote in this private poll.');
         }
-        // Ensure the voting type is consistent with private poll expectations
         if (pollToVoteOn.votingType !== 'authenticated') {
-            // This implies a misconfiguration, as private polls with allowedVoters should be 'authenticated' type
-            console.warn(`[CastVote] Private poll ${pollToVoteOn.shortId} has votingType='${pollToVoteOn.votingType}' which is unusual for specific allowed voters.`);
-            // Depending on strictness, you could throw an error or proceed using user ID.
-            // For now, we proceed using user ID as it's a private poll and user is authenticated.
+             console.warn(`[CastVote] Private poll ${pollToVoteOn.shortId || pollToVoteOn._id} has votingType='${pollToVoteOn.votingType}'. It should be 'authenticated'.`);
+             // Forcing authenticated context for voter ID
         }
-
-        voterIdentifier = req.user.id; // For private polls, identifier is always user ID
+        voterIdentifier = req.user.id;
         console.log(`[CastVote] PRIVATE POLL. Authenticated user voting. VoterID (user._id): ${voterIdentifier}`);
     }
     
@@ -378,13 +378,13 @@ exports.castVote = asyncHandler(async (req, res) => {
         });
         console.log(`[CastVote] Vote created successfully. Poll: ${pollToVoteOn._id}, VoterIdentifier: ${voterIdentifier}`);
     } catch (dbError) {
-        if (dbError.code === 11000) { // MongoDB duplicate key error
-            console.warn(`[CastVote] DB Duplicate Key Error on Vote.create. Poll: ${pollToVoteOn._id}, VoterIdentifier: ${voterIdentifier}. This indicates a likely race condition or that the app-level check was bypassed.`);
-            res.status(403); // Or 409 Conflict might be more appropriate
-            throw new Error('Your vote could not be recorded due to a conflict. It is likely this identifier has already voted.');
+        if (dbError.code === 11000) { 
+            console.warn(`[CastVote] DB Duplicate Key Error on Vote.create. Poll: ${pollToVoteOn._id}, VoterIdentifier: ${voterIdentifier}.`);
+            res.status(403);
+            throw new Error('Your vote could not be recorded (duplicate). It is likely this identifier has already voted.');
         }
         console.error("[CastVote] Error during Vote.create:", dbError);
-        throw dbError; // Re-throw other database errors
+        throw dbError;
     }
 
     // --- Atomically increment the vote count and respond ---
@@ -395,8 +395,7 @@ exports.castVote = asyncHandler(async (req, res) => {
     ).populate('creator', 'displayName email');
 
     if (!updatedPoll) {
-        // This should ideally not happen if the poll and option exist and vote was created
-        console.error(`[CastVote] CRITICAL: Failed to find and update poll options after vote creation. Poll ID: ${pollToVoteOn._id}, Option Index: ${optionIndex}`);
+        console.error(`[CastVote] CRITICAL: Failed to find/update poll options after vote. PollID: ${pollToVoteOn._id}, OptionIdx: ${optionIndex}`);
         res.status(500);
         throw new Error('Failed to update vote count on the poll after vote creation.');
     }
